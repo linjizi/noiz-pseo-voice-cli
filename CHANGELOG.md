@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.0 — 2026-08-08
+
+- Added `voice-to-page` (A-tier): specified existing voiceId → auto landing page (ensure_voice → publicize hook → candidate/pipeline poll → check)
+- Idempotent re-runs, per-step audit, `--dry-run`, `--json`, exit code 2 = needs_review
+- Configurable `NOIZ_PUBLICIZE_HOOK` / `NOIZ_ALERT_HOOK`; B/C tier flags reserved
+- Cost accounting fields (`voice_design` / `clone` / `demo`) in output
+
 ## v0.4.1 — 2026-08-08
 
 - Removed hardcoded internal CMS URL defaults; `NOIZ_CMS_URL` is now required

@@ -30,6 +30,7 @@ voice SEO pipeline 通常以内部脚本的形式跑在 runner 机器上。这�
 | `dry-run enqueue <voiceId>` / `dry-run consume` | 只读 | 预演写操作，不改状态 |
 | `enqueue <voiceId>` | 写 | 音色入队（幂等） |
 | `audit [--since] [--caller] [--limit]` | 只读 | 查询本地审计日志 |
+| `voice-to-page --voice-id <id>` | 写 | A 档：指定音色 → 自动出落地页（管线 + check） |
 
 所有命令支持 `--json` 结构化输出与 `--help` 自发现；退出码 0=成功、1=失败。
 
@@ -121,6 +122,20 @@ noiz-pseo-voice check "$VOICE_ID" --json || exit 1
 | `NOIZ_VOICES_DB_URL` | DB 命令 | voices 数据库 DSN |
 | `NOIZ_CALLER_ID` | 否 | 审计日志里的调用方标识 |
 | `NOIZ_AUDIT_LOG` | 否 | 审计日志路径（默认 `~/.local/share/noiz-pseo-voice/audit.jsonl`） |
+| `NOIZ_PUBLICIZE_HOOK` | voice-to-page | 音色转 public 的钩子：http(s) URL（POST JSON）或可执行路径（参数传 voice_id） |
+| `NOIZ_ALERT_HOOK` | 否 | `needs_review` 结果的报警钩子（同上 URL/可执行约定） |
+
+## voice-to-page（A 档）
+
+从已有音色一键编排出落地页：
+
+```bash
+noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|false] [--dry-run]
+```
+
+流程：`ensure_voice`（voices 库）→ `publicize`（非 public 时调钩子）→ 创建/轮询管线候选 → 最终 `check`。重复执行幂等：已有 built 记录会直接跳到 check。B/C 档参数（`--description/--character/--source/--ref-audio`）已预留但未实现。
+
+退出码：`0` 成功、`1` 错误、`2` needs_review（非 public 音色 / content gate 待审 / 无 demo 素材——带 `reason`，可选触发 `NOIZ_ALERT_HOOK`）。每次运行写分步审计，并输出 `cost` 块（`voice_design` / `clone` / `demo`）用于 API 成本记账。
 
 ## 权限模型
 

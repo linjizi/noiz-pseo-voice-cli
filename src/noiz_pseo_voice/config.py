@@ -69,6 +69,14 @@ class Config:
         )
         self.voices_db_url = merged.get("NOIZ_VOICES_DB_URL", "").strip() or None
         self.caller_id = merged.get("NOIZ_CALLER_ID", "").strip() or None
+        # voice-to-page publicization hook: an http(s) URL (POST JSON
+        # {"voice_id": ...}) or an executable path (called with voice_id as
+        # argv[1]). Test phase = 后台's idempotent conversion script; prod
+        # phase = visibility API once it exists.
+        self.publicize_hook = merged.get("NOIZ_PUBLICIZE_HOOK", "").strip() or None
+        # Optional alert hook for needs_review outcomes (e.g. Slock channel
+        # notification). Same http URL / executable path convention.
+        self.alert_hook = merged.get("NOIZ_ALERT_HOOK", "").strip() or None
         default_audit = Path.home() / ".local" / "share" / "noiz-pseo-voice" / "audit.jsonl"
         self.audit_log = Path(
             merged.get("NOIZ_AUDIT_LOG", str(default_audit))

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import shlex
+import subprocess
 import time
+import urllib.request
 from typing import Any, Optional
 
 from . import __version__
@@ -11,7 +14,7 @@ from .audit import append, query
 from .checks import run_checks
 from .cms import CmsClient, CmsError
 from .config import Config
-from .db import DbError, enqueue_voice, queue_counts, queue_voice_exists
+from .db import DbError, enqueue_voice, queue_counts, queue_voice_exists, voice_by_id
 
 
 def _now_iso() -> str:
@@ -388,6 +391,293 @@ def audit(cfg: Config, args: list[str]) -> dict[str, Any]:
     return {"ok": True, "log": str(cfg.audit_log), "entries": rows}
 
 
+def _run_hook(hook: str, payload: dict[str, Any], timeout: int = 30) -> str:
+    """Call a configured hook: http(s) URL → POST JSON; else executable path."""
+    if hook.startswith(("http://", "https://")):
+        req = urllib.request.Request(
+            hook,
+            data=json.dumps(payload).encode(),
+            method="POST",
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return f"hook HTTP {resp.status}"
+        except urllib.error.HTTPError as exc:
+            return f"hook HTTP {exc.code}"
+        except Exception as exc:
+            return f"hook failed: {exc}"
+    argv = shlex.split(hook) + [payload.get("voice_id", ""), payload.get("reason", "")]
+    proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+    return f"hook exit {proc.returncode}"
+
+
+def _needs_review(
+    reason: str,
+    voice_id: str,
+    steps: list[dict[str, Any]],
+    alert_hook: Optional[str] = None,
+) -> dict[str, Any]:
+    if alert_hook:
+        _run_hook(
+            alert_hook,
+            {"voice_id": voice_id, "reason": reason, "status": "needs_review"},
+        )
+    return {
+        "ok": False,
+        "exit_code": 2,
+        "voice_id": voice_id,
+        "status": "needs_review",
+        "reason": reason,
+        "steps": steps,
+        "error": reason,
+    }
+
+
+def voice_to_page(cfg: Config, args: list[str]) -> dict[str, Any]:
+    """M1 / A-tier: specified existing voiceId → auto-generated landing page.
+
+    Reuses the existing pipeline: ensure_voice (voices DB) → publicize hook →
+    create candidate (CMS) → poll until built/live → check. Idempotent,
+    --dry-run, per-step audit, cost accounting fields.
+    """
+    voice_id = ""
+    name = None
+    index = True
+    dry_run = False
+    poll_interval = 20
+    timeout = 1800
+    reserved = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--voice-id" and i + 1 < len(args):
+            voice_id = args[i + 1]
+            i += 2
+        elif a == "--name" and i + 1 < len(args):
+            name = args[i + 1]
+            i += 2
+        elif a == "--index" and i + 1 < len(args):
+            index = args[i + 1].lower() not in ("false", "0", "no")
+            i += 2
+        elif a == "--dry-run":
+            dry_run = True
+            i += 1
+        elif a == "--poll-interval" and i + 1 < len(args):
+            poll_interval = max(1, int(args[i + 1]))
+            i += 2
+        elif a == "--timeout" and i + 1 < len(args):
+            timeout = max(10, int(args[i + 1]))
+            i += 2
+        elif a in ("--description", "--character", "--source", "--ref-audio"):
+            reserved.append(a)
+            i += 2 if i + 1 < len(args) and not args[i + 1].startswith("--") else 1
+        else:
+            return {
+                "ok": False,
+                "error": f"unknown voice-to-page argument {a!r} "
+                "(usage: --voice-id <id> [--name] [--index] [--dry-run])",
+            }
+    if not voice_id:
+        return {"ok": False, "error": "voice-to-page requires --voice-id <id> (A-tier)"}
+    if reserved:
+        return {
+            "ok": False,
+            "error": "B/C tier (--description/--character/--source/--ref-audio) "
+            "not implemented yet in v0.5.0; use --voice-id",
+        }
+
+    steps: list[dict[str, Any]] = []
+
+    def add_step(name: str, status: str, detail: str = "") -> None:
+        steps.append({"step": name, "status": status, "detail": detail})
+
+    # 1. ensure_voice
+    if not cfg.voices_db_url:
+        return {
+            "ok": False,
+            "error": "NOIZ_VOICES_DB_URL required for voice-to-page "
+            "(ensure_voice validation)",
+        }
+    try:
+        voice = voice_by_id(cfg.voices_db_url, voice_id)
+    except DbError as exc:
+        return {"ok": False, "error": str(exc)}
+    if voice is None:
+        add_step("ensure_voice", "error", "voice_id not found in voices DB")
+        return _needs_review(
+            f"voice {voice_id} not found in voices DB", voice_id, steps, cfg.alert_hook
+        )
+    if voice.get("delete_time") is not None:
+        add_step("ensure_voice", "error", "voice is deleted")
+        return {"ok": False, "exit_code": 1, "voice_id": voice_id, "steps": steps,
+                "error": f"voice {voice_id} is deleted"}
+    add_step(
+        "ensure_voice",
+        "ok",
+        f"{voice.get('display_name') or voice_id} ({voice.get('language') or '?'})",
+    )
+
+    # 2. publicize
+    is_public = bool(voice.get("is_public")) and voice.get("status") == "active"
+    if is_public:
+        add_step("publicize", "skipped", "already public/active")
+    elif dry_run:
+        add_step("publicize", "dry_run", "would call NOIZ_PUBLICIZE_HOOK")
+    elif cfg.publicize_hook:
+        detail = _run_hook(cfg.publicize_hook, {"voice_id": voice_id})
+        add_step("publicize", "requested", detail)
+    else:
+        add_step(
+            "publicize",
+            "needs_review",
+            "voice not public and NOIZ_PUBLICIZE_HOOK not configured "
+            "(test: 后台 conversion script; prod: visibility API)",
+        )
+        return _needs_review(
+            f"voice {voice_id} is not public; 后台 must convert to built-in/public "
+            "(NOIZ_PUBLICIZE_HOOK not configured)",
+            voice_id,
+            steps,
+            cfg.alert_hook,
+        )
+
+    # 3. candidate
+    cms = CmsClient(cfg.cms_url, cfg.cms_api_key, cfg.cms_email, cfg.cms_password)
+    record = None
+    try:
+        record = cms.get_record(voice_id, depth=1)
+    except CmsError as exc:
+        if "no voice-detail record found" not in str(exc):
+            add_step("candidate", "error", str(exc))
+            return {"ok": False, "exit_code": 1, "voice_id": voice_id, "steps": steps,
+                    "error": str(exc)}
+    record_id = None
+    if record is None:
+        if dry_run:
+            add_step("candidate", "dry_run", "would create candidate record")
+        else:
+            fields: dict[str, Any] = {
+                "voiceId": voice_id,
+                "pageType": "functionPage",
+                "pipelineStatus": "candidate_screening",
+                "index": index,
+            }
+            if name:
+                fields["name"] = name
+            try:
+                created = cms.create_record(fields)
+                record_id = created.get("id") or (created.get("doc") or {}).get("id")
+                add_step("candidate", "ok", f"created record {record_id}")
+            except CmsError as exc:
+                add_step("candidate", "error", str(exc))
+                return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                        "steps": steps, "error": str(exc)}
+    else:
+        record_id = record.get("id")
+        add_step("candidate", "skipped", f"existing record {record_id} ({record.get('pipelineStatus')})")
+
+    # 4. pipeline poll
+    status = record.get("pipelineStatus") if record else "candidate_screening"
+    if dry_run:
+        add_step("pipeline", "dry_run", f"would drive record {record_id} to built")
+        return {
+            "ok": True,
+            "exit_code": 0,
+            "dry_run": True,
+            "voice_id": voice_id,
+            "record_id": record_id,
+            "pipeline_status": status,
+            "steps": steps,
+            "cost": {"voice_design": 0, "clone": 0, "demo": None},
+        }
+    if status not in ("built", "live"):
+        add_step("pipeline", "in_progress", f"initial status {status}; polling")
+        deadline = time.time() + timeout
+        last = status
+        while time.time() < deadline:
+            time.sleep(poll_interval)
+            try:
+                rec = cms.get_record(record_id, depth=1)
+            except CmsError as exc:
+                add_step("pipeline", "error", str(exc))
+                return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                        "record_id": record_id, "steps": steps, "error": str(exc)}
+            status = rec.get("pipelineStatus") or last
+            gate = rec.get("contentGate")
+            if status != last:
+                add_step("pipeline", "in_progress", f"{last} → {status}")
+                last = status
+            if status in ("built", "live"):
+                break
+            if status == "rejected":
+                add_step("pipeline", "error", "record rejected")
+                return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                        "record_id": record_id, "steps": steps,
+                        "error": f"record rejected (contentGate={gate})"}
+            if gate == "needs_review":
+                return _needs_review(
+                    f"voice {voice_id} flagged needs_review by content gate",
+                    voice_id,
+                    steps,
+                    cfg.alert_hook,
+                )
+            if gate == "blocked":
+                add_step("pipeline", "error", "content gate blocked")
+                return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                        "record_id": record_id, "steps": steps,
+                        "error": "record blocked by content gate"}
+        if status not in ("built", "live"):
+            add_step("pipeline", "error", f"timeout after {timeout}s (last status {status})")
+            return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                    "record_id": record_id, "steps": steps,
+                    "error": f"pipeline did not reach built within {timeout}s (last {status})"}
+        add_step("pipeline", "ok", "built/live")
+
+    # 5. final check
+    try:
+        full = cms.get_record(record_id, depth=2)
+    except CmsError as exc:
+        return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                "record_id": record_id, "steps": steps, "error": str(exc)}
+    check_result = run_checks(full, cfg.site_base)
+    checks = check_result["checks"]
+    failing = [c["name"] for c in checks if not c["ok"]]
+    add_step("check", "ok" if not failing else "failed", ",".join(failing) or "all PASS")
+    assets = ((full.get("pipelineStaging") or {}).get("assets") or [])
+
+    if failing:
+        if "assets_nonempty" in failing:
+            return _needs_review(
+                f"voice {voice_id} has no demo assets (无素材音色)",
+                voice_id,
+                steps,
+                cfg.alert_hook,
+            )
+        return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                "record_id": record_id, "pipeline_status": status,
+                "steps": steps, "checks": checks,
+                "page_url": check_result.get("page_url"),
+                "error": f"check failed: {','.join(failing)}"}
+
+    return {
+        "ok": True,
+        "exit_code": 0,
+        "voice_id": voice_id,
+        "record_id": record_id,
+        "pipeline_status": status,
+        "steps": steps,
+        "checks": checks,
+        "page_url": check_result.get("page_url"),
+        "cost": {
+            "voice_design": 0,
+            "clone": 0,
+            "demo": len(assets) if assets else None,
+            "note": "A-tier reuses existing pipeline; API costs recorded by internal orchestrator",
+        },
+    }
+
+
 COMMANDS = {
     "doctor": doctor,
     "status": status,
@@ -398,4 +688,5 @@ COMMANDS = {
     "enqueue": enqueue,
     "audit": audit,
     "permissions": permissions,
+    "voice-to-page": voice_to_page,
 }

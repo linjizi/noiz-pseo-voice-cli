@@ -90,6 +90,20 @@ def _render_text(result: dict[str, Any], command: str) -> str:
     elif command == "permissions":
         lines.append(f"auth: {result.get('auth')}")
         lines.append(f"model: {result.get('model')}")
+    elif command == "voice-to-page":
+        if "error" in result:
+            lines.append(f"error: {result['error']}")
+            if result.get("status") == "needs_review":
+                lines.append(f"status: needs_review (reason: {result.get('reason')})")
+        for step in result.get("steps", []):
+            lines.append(f"[{step['status'].upper()}] {step['step']}: {step['detail']}")
+        if result.get("checks"):
+            for c in result["checks"]:
+                lines.append(f"[{'PASS' if c['ok'] else 'FAIL'}] {c['name']}: {c['detail']}")
+        if result.get("page_url"):
+            lines.append(f"page: {result['page_url']}")
+        if result.get("cost"):
+            lines.append(f"cost: {json.dumps(result['cost'], ensure_ascii=False)}")
     else:
         lines.append(json.dumps(result, ensure_ascii=False, indent=2))
     return "\n".join(lines)
@@ -142,6 +156,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_enq = sub.add_parser("enqueue", help="enqueue a voice into the pipeline queue (any authenticated account)")
     p_enq.add_argument("voice_id")
+
+    p_v2p = sub.add_parser(
+        "voice-to-page",
+        help="A-tier: specified voiceId -> auto landing page (reuses pipeline; --dry-run/--json)",
+    )
+    p_v2p.add_argument("--voice-id", help="existing voiceId in the voices DB")
+    p_v2p.add_argument("--name", help="optional record name")
+    p_v2p.add_argument("--index", default="true", help="index flag (default true)")
+    p_v2p.add_argument("--dry-run", action="store_true", help="preview without writes")
+    p_v2p.add_argument("--poll-interval", type=int, default=20, help="seconds between status polls")
+    p_v2p.add_argument("--timeout", type=int, default=1800, help="max seconds to wait for built")
+    # Reserved B/C-tier inputs (PRD v0.4): rejected until implemented.
+    p_v2p.add_argument("--description", help="B-tier: voice description (not implemented)")
+    p_v2p.add_argument("--character", help="B-tier: character/IP name (not implemented)")
+    p_v2p.add_argument("--source", help="B-tier: origin/source (not implemented)")
+    p_v2p.add_argument("--ref-audio", help="C-tier: reference audio file/URL (not implemented)")
     return parser
 
 
@@ -185,6 +215,19 @@ def main(argv: list[str] | None = None) -> int:
             rest = [args.dry_target]
             if args.dry_target == "enqueue":
                 rest.append(args.voice_id)
+        elif command == "voice-to-page":
+            fn = COMMANDS["voice-to-page"]
+            rest = ["--voice-id", args.voice_id]
+            if args.name:
+                rest += ["--name", args.name]
+            rest += ["--index", str(args.index)]
+            if args.dry_run:
+                rest += ["--dry-run"]
+            rest += ["--poll-interval", str(args.poll_interval), "--timeout", str(args.timeout)]
+            for flag in ("--description", "--character", "--source", "--ref-audio"):
+                value = getattr(args, flag.lstrip("-").replace("-", "_"), None)
+                if value:
+                    rest += [flag, value]
         else:
             fn = COMMANDS[command]
             if command == "check":
@@ -226,7 +269,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         text = _render_text(result, command)
         print(text)
-    return 0 if result.get("ok", False) else 1
+    # Exit codes: 0=success, 1=error, 2=needs_review (PRD v0.4).
+    return int(result.get("exit_code", 0 if result.get("ok", False) else 1))
 
 
 if __name__ == "__main__":

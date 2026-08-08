@@ -32,6 +32,7 @@ Voice SEO pipelines usually live as internal scripts on a runner machine. This C
 | `dry-run enqueue <voiceId>` / `dry-run consume` | read | preview a write without changing state |
 | `enqueue <voiceId>` | write | enqueue a voice (idempotent) |
 | `audit [--since] [--caller] [--limit]` | read | query the local audit log |
+| `voice-to-page --voice-id <id>` | write | A-tier: specified voice → auto landing page (pipeline + check) |
 
 All commands support `--json` for structured output and `--help` for self-discovery. Exit code is `0` on success and `1` on failure.
 
@@ -123,6 +124,27 @@ Precedence: environment variables > key=value file at `NOIZ_PSEO_VOICE_CONFIG` (
 | `NOIZ_VOICES_DB_URL` | DB commands | voices database DSN |
 | `NOIZ_CALLER_ID` | no | caller identity recorded in the audit log |
 | `NOIZ_AUDIT_LOG` | no | audit log path (default `~/.local/share/noiz-pseo-voice/audit.jsonl`) |
+| `NOIZ_PUBLICIZE_HOOK` | voice-to-page | hook to make a voice public: http(s) URL (POST JSON) or executable path (called with voice_id) |
+| `NOIZ_ALERT_HOOK` | no | hook for `needs_review` outcomes (same URL/executable convention) |
+
+## voice-to-page (A-tier)
+
+One-command orchestration from an existing voice to a landing page:
+
+```bash
+noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|false] [--dry-run]
+```
+
+It runs `ensure_voice` (voices DB) → `publicize` (hook if not public) →
+create/poll the pipeline candidate → final `check`. Re-running is idempotent:
+an existing built record skips straight to `check`. B/C tiers
+(`--description/--character/--source/--ref-audio`) are reserved but not
+implemented yet.
+
+Exit codes: `0` success, `1` error, `2` needs_review (non-public voice,
+content-gate review, or no demo assets — includes a `reason` and optionally
+fires `NOIZ_ALERT_HOOK`). Every run records per-step audit entries and a
+`cost` block (`voice_design` / `clone` / `demo`) for API accounting.
 
 ## Permission model
 

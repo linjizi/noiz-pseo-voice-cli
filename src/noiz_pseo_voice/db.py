@@ -59,6 +59,35 @@ def queue_voice_exists(dsn: str, voice_id: str) -> bool:
         conn.close()
 
 
+def voice_by_id(dsn: str, voice_id: str) -> Optional[dict[str, Any]]:
+    """Read the voices row for a voice_id (A-tier ensure_voice)."""
+    conn = _connect(dsn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, voice_id, is_public, status, voice_type, delete_time, "
+                "display_name, language, creation_mode "
+                "FROM voices WHERE voice_id = %s",
+                (voice_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "voice_id": row[1],
+            "is_public": bool(row[2]),
+            "status": row[3],
+            "voice_type": row[4],
+            "delete_time": row[5],
+            "display_name": row[6],
+            "language": row[7],
+            "creation_mode": row[8],
+        }
+    finally:
+        conn.close()
+
+
 def enqueue_voice(dsn: str, voice_id: str) -> str:
     conn = _connect(dsn)
     try:
@@ -76,4 +105,3 @@ def enqueue_voice(dsn: str, voice_id: str) -> str:
         raise DbError(f"enqueue failed: {exc}") from exc
     finally:
         conn.close()
-
