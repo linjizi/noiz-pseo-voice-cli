@@ -13,7 +13,12 @@ dependencies = []
 
 [project.optional-dependencies]
 db = ["psycopg2-binary>=2.9"]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "build>=1", "twine>=5"]
+
+[project.urls]
+Homepage = "https://github.com/linjizi/noiz-pseo-voice-cli"
+Repository = "https://github.com/linjizi/noiz-pseo-voice-cli"
+Changelog = "https://github.com/linjizi/noiz-pseo-voice-cli/blob/main/CHANGELOG.md"
 
 [project.scripts]
 noiz-pseo-voice = "noiz_pseo_voice.cli:main"
