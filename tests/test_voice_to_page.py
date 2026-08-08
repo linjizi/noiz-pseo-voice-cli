@@ -367,3 +367,19 @@ def test_b_hook_missing_needs_review(monkeypatch):
     assert result["ok"] is False
     assert result["exit_code"] == 2
     assert "NOIZ_VOICE_CREATE_HOOK" in result["reason"]
+
+
+def test_b_hook_needs_review_status_maps_to_exit_2(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/voice_design_clone.py --env test")
+    _patch_env(monkeypatch, cms=FakeCms(), voice=PUBLIC_VOICE)
+    monkeypatch.setattr(
+        commands, "_run_hook_json",
+        lambda hook, payload, timeout=120: {"status": "needs_review", "reason": "low preview score (3.2)"},
+    )
+    result = commands.voice_to_page(
+        cfg, ["--keyword", "k", "--character", "c", "--source", "s",
+              "--description", B_DESC, "--confirm-description"]
+    )
+    assert result["ok"] is False
+    assert result["exit_code"] == 2
+    assert "low preview score" in result["reason"]

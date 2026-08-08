@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.4 — 2026-08-08
+
+- B-tier voice create hook: `status=needs_review` (e.g. low preview score)
+  maps to needs_review exit 2 with the hook's reason, not a hard error
+
 ## v0.5.3 — 2026-08-08
 
 - Added B-tier `voice-to-page`: keyword + character/source → voice create hook

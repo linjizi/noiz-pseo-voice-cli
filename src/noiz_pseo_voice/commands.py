@@ -675,6 +675,15 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
             "env": "test",
         }
         result = _run_hook_json(cfg.voice_create_hook, payload)
+        if result and result.get("status") == "needs_review":
+            # PRD v0.5.3: low preview score etc. → needs_review (exit 2), not a
+            # hard error; propagate the hook's reason when available.
+            reason = (
+                str(result.get("reason") or result.get("detail") or "")
+                or "voice create hook returned needs_review"
+            )
+            add_step("voice_create", "needs_review", reason)
+            return _needs_review(reason, keyword, steps, cfg.alert_hook)
         if not result or not result.get("voice_id"):
             add_step("voice_create", "needs_review", "hook did not return voice_id")
             return _needs_review(
