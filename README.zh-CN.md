@@ -1,0 +1,146 @@
+# noiz-pseo-voice-cli
+
+用于操作 voice SEO pipeline 的命令行工具：查询管线状态、单页验收检查、手动创建/更新 voice 页面。人和 AI agent 都适用——鉴权只认 CMS 账号，没有其它区分。
+
+> English: [README.md](README.md) · 简体中文：README.zh-CN.md
+
+## 背景
+
+voice SEO pipeline 通常以内部脚本形式跑在 runner 机器上。这个 CLI 把同类操作封装成一条可安装命令、输出结构化结果，让 CI、自动化、agent、运维都能：
+
+- 查看管线状态和队列健康
+- 对 voice 页面做验收检查（关键词、内容 hash、assets、线上 URL）
+- 手动创建候选记录、写字段/推进状态——不依赖常驻 runner 的“手动版 pipeline”
+- 把音色入队（幂等）
+- 留审计记录：谁、何时、跑了什么
+
+## 命令一览
+
+| 命令 | 类型 | 作用 |
+| --- | --- | --- |
+| `doctor` | 只读 | 环境/凭据自检 |
+| `permissions` | 只读 | 鉴权验证 + 权限模型说明 |
+| `status` | 只读 | 管线总览（CMS 状态计数 + 可选队列） |
+| `voices list [--status] [--locale] [--limit]` | 只读 | 记录列表 |
+| `voices get <id\|voiceId\|slug>` | 只读 | 单条详情 |
+| `voices create <voiceId> [--name] [--slug] [--status]` | 写 | 手动建候选记录 |
+| `voices update <id> --set '<json>' [--status]` | 写 | 写字段 / 推进状态 |
+| `check <id\|voiceId\|slug>` | 只读 | 单页验收（逐项 PASS/FAIL） |
+| `queue` | 只读 | 队列计数 + 游标（需 DB） |
+| `dry-run enqueue <voiceId>` / `dry-run consume` | 只读 | 写操作预演，不动库 |
+| `enqueue <voiceId>` | 写 | 入队（幂等） |
+| `audit [--since] [--caller] [--limit]` | 只读 | 审计日志查询 |
+
+所有命令支持 `--json` 结构化输出和 `--help` 自发现；退出码 0=成功、1=失败。
+
+## 安装
+
+```bash
+pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
+# DB 命令（queue / dry-run / enqueue）需要可选依赖：
+pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
+```
+
+## 快速开始
+
+1. 安装（见上）。
+2. 建配置文件（建议 `~/.config/noiz-pseo-voice.env`，然后 `chmod 600`）：
+
+```bash
+NOIZ_CMS_URL=https://your-cms.example.com/seo-manage
+NOIZ_CMS_API_KEY=sk-xxx            # 或 NOIZ_CMS_EMAIL / NOIZ_CMS_PASSWORD
+NOIZ_SITE_BASE=https://example.com
+NOIZ_VOICES_DB_URL=postgresql://readonly:xxx@host:5432/db
+NOIZ_CALLER_ID=my-agent
+```
+
+3. 体检：
+
+```bash
+export NOIZ_PSEO_VOICE_CONFIG=~/.config/noiz-pseo-voice.env
+noiz-pseo-voice doctor
+```
+
+全部 PASS 即就绪；FAIL 会告诉你缺什么。
+
+## 教程：15 分钟跑通
+
+1. **看管线状态** — `noiz-pseo-voice status`
+2. **找记录** — `noiz-pseo-voice voices list --status built --limit 10`，再 `noiz-pseo-voice voices get <id>`
+3. **验收页面** — `noiz-pseo-voice check <voiceId>`（状态/关键词/内容 hash/assets/URL 200 逐项 PASS/FAIL）
+4. **手动建页（写）** — `noiz-pseo-voice voices create <voiceId> --name "My Voice" --status candidate_screening`
+5. **写字段/推状态（写）** — `noiz-pseo-voice voices update <id> --set '{"pipelineStaging":{"keywordInputJson":{"primary_keyword":"tts","validated":true}}}' --status keywords_ready`
+6. **入队（写）** — 先 `noiz-pseo-voice dry-run enqueue <voiceId>`，再 `noiz-pseo-voice enqueue <voiceId>`（重复执行返回 `skipped_dup`）
+7. **审计** — `noiz-pseo-voice audit --since 2026-08-08T00:00:00Z`
+
+## 示例
+
+给人看（文本）：
+
+```bash
+$ noiz-pseo-voice check 7bc8b578
+[PASS] status_terminal: built
+[PASS] keywords_present: keywordInputJson/keywordInput
+[PASS] primary_keyword: classic audiobook narrator
+[PASS] keywords_validated: validated flag
+[PASS] content_hash: a1b2c3...
+[PASS] assets_nonempty: 9 asset(s)
+[PASS] page_url_defined: https://example.com/lp/voice/...
+[PASS] page_url_live: https://example.com/lp/voice/...
+overall: OK (voiceId=7bc8b578)
+```
+
+给机器看（JSON）：
+
+```bash
+$ noiz-pseo-voice check 7bc8b578 --json
+{
+  "ok": true,
+  "checks": [{"name": "status_terminal", "ok": true, "detail": "built"}, ...],
+  "voice_id": "7bc8b578",
+  "page_url": "https://example.com/lp/voice/..."
+}
+```
+
+在 CI 里用：
+
+```bash
+noiz-pseo-voice check "$VOICE_ID" --json || exit 1
+```
+
+## 配置
+
+优先级：环境变量 > `NOIZ_PSEO_VOICE_CONFIG` 指向的 key=value 文件（建议 0600）。
+
+| 变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `NOIZ_CMS_URL` | 是 | Payload CMS base URL（无内部默认值） |
+| `NOIZ_CMS_API_KEY` | 二选一 | CMS API key |
+| `NOIZ_CMS_EMAIL` / `NOIZ_CMS_PASSWORD` | 二选一 | CMS 账号密码登录 |
+| `NOIZ_SITE_BASE` | 否 | 页面活链检查基准（默认 `https://noiz.ai`） |
+| `NOIZ_VOICES_DB_URL` | DB 命令 | voices 库 DSN |
+| `NOIZ_CALLER_ID` | 否 | 审计日志里的调用方标识 |
+| `NOIZ_AUDIT_LOG` | 否 | 审计日志路径（默认 `~/.local/share/noiz-pseo-voice/audit.jsonl`） |
+
+## 权限模型
+
+- 鉴权= CMS 账号（API key 或邮箱密码），没有 agent/人分档
+- 与 CMS 对齐：账号能登录即可跑所有命令；命令范围只限 voice-detail-pages 链路（create/update/enqueue），不碰其它
+- 不设权限分档，保留两道防误操作：`dry-run` 预演 + 本地审计日志
+- 凭据只放环境变量或 0600 文件，绝不提交进仓库
+
+## 安全
+
+- 密钥只放环境变量或 0600 配置文件
+- 每次调用都写审计日志（caller/命令/结果），可用 `audit` 查询
+- 写命令尽量幂等、可先用 `dry-run` 预演
+
+## 开发
+
+```bash
+pip install -e ".[dev,db]"
+pytest
+```
+
+PRD：`docs/PRD.md`。License：MIT（见 `LICENSE`）。
+

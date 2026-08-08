@@ -2,6 +2,8 @@
 
 CLI for operating a voice SEO pipeline: query pipeline state, run per-page acceptance checks, and manually create/update voice pages. Works for humans and AI agents alike — authentication is a CMS account, nothing else.
 
+> English: README.md · 简体中文：[README.zh-CN.md](README.zh-CN.md)
+
 ## Background
 
 Voice SEO pipelines usually live as internal scripts on a runner machine. This CLI wraps the same operations into a single installable command with structured output, so any caller (CI, automation, agents, operators) can:
