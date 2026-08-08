@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
+import tempfile
 import time
 import urllib.request
 from typing import Any, Optional
@@ -436,7 +438,9 @@ def _needs_review(
 
 def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 120) -> Optional[dict[str, Any]]:
     """Call a hook and parse its JSON output (voice-create hook contract:
-    returns {"voice_id": ...}). URL → response body; command → stdout."""
+    returns {"voice_id": ...}). URL → POST JSON body; command → payload written
+    to a temp JSON file and passed as --input <path> (voice_design_clone.py
+    contract, v0.5.5)."""
     try:
         if hook.startswith(("http://", "https://")):
             req = urllib.request.Request(
@@ -448,9 +452,18 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 120) -> Op
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 body = resp.read().decode("utf-8", "replace")
         else:
-            argv = shlex.split(hook) + [payload.get("keyword", ""), payload.get("character", "")]
-            proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
-            body = proc.stdout
+            fd, tmp_path = tempfile.mkstemp(prefix="noiz-v2p-", suffix=".json")
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(payload, fh, ensure_ascii=False)
+            argv = shlex.split(hook) + ["--input", tmp_path]
+            try:
+                proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+                body = proc.stdout
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
             if proc.returncode != 0:
                 return None
         out = json.loads(body.strip().splitlines()[-1] if body.strip() else "{}")
@@ -672,7 +685,7 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
             "labels": data.get("labels"),
             "language": data.get("language"),
             "scene": scene,
-            "env": "test",
+            "env": cfg.voice_create_env,
         }
         result = _run_hook_json(cfg.voice_create_hook, payload)
         if result and result.get("status") == "needs_review":

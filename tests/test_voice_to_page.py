@@ -1,3 +1,6 @@
+import json
+import os
+
 import noiz_pseo_voice.commands as commands
 from noiz_pseo_voice.cms import CmsError
 from noiz_pseo_voice.config import Config
@@ -329,12 +332,22 @@ def test_b_voice_create_hook_then_a_flow(monkeypatch):
     cms = FakeCms()
     _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vB"))
     _install_built_after_create(monkeypatch, cms)
-    monkeypatch.setattr(commands, "_run_hook_json", lambda hook, payload, timeout=120: {"voice_id": "vB"})
+    captured = {}
+
+    def fake_hook(hook, payload, timeout=120):
+        captured["payload"] = payload
+        return {"voice_id": "vB"}
+
+    monkeypatch.setattr(commands, "_run_hook_json", fake_hook)
     result = commands.voice_to_page(
         cfg, ["--keyword", "k", "--character", "c", "--source", "s",
               "--description", B_DESC, "--timeout", "60"]
     )
     assert result["ok"] is True
+    assert captured["payload"]["env"] == "test"
+    assert captured["payload"]["character"] == "c"
+    assert captured["payload"]["source"] == "s"
+    assert captured["payload"]["description"] == B_DESC
     assert any(s["step"] == "voice_create" and s["status"] == "ok" for s in result["steps"])
     assert result["voice_id"] == "vB"
     assert result["page_hint"]["slug_base"] == "k"
@@ -383,3 +396,25 @@ def test_b_hook_needs_review_status_maps_to_exit_2(monkeypatch):
     assert result["ok"] is False
     assert result["exit_code"] == 2
     assert "low preview score" in result["reason"]
+
+
+def test_run_hook_json_writes_input_file(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, capture_output=False, text=False, timeout=120):
+        captured["argv"] = list(argv)
+        with open(argv[argv.index("--input") + 1], encoding="utf-8") as fh:
+            captured["payload"] = json.load(fh)
+        return type("P", (), {"returncode": 0, "stdout": '{"voice_id":"vNew"}'})()
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+    out = commands._run_hook_json(
+        "python /tmp/voice_design_clone.py --env test",
+        {"keyword": "k", "character": "c", "source": "s", "description": "d", "env": "test"},
+    )
+    assert out == {"voice_id": "vNew"}
+    assert captured["argv"][:4] == ["python", "/tmp/voice_design_clone.py", "--env", "test"]
+    assert captured["argv"][-2] == "--input"
+    assert captured["payload"]["keyword"] == "k"
+    assert captured["payload"]["env"] == "test"
+    assert not os.path.exists(captured["argv"][-1])

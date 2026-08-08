@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.5 — 2026-08-08
+
+- B-tier voice create hook: command hooks now receive the payload as a temp
+  JSON file via `--input <path>` (voice_design_clone.py contract) instead of
+  two positional args; env is configurable via `NOIZ_VOICE_CREATE_ENV`
+  (default test)
+
 ## v0.5.4 — 2026-08-08
 
 - B-tier voice create hook: `status=needs_review` (e.g. low preview score)
