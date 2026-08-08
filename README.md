@@ -148,10 +148,6 @@ Agents should:
 - Audit log per invocation (caller, command, result) — queryable with `audit`
 - Write commands are idempotent where possible and previewable with `dry-run`
 
-## Agent skill
-
-This repository includes a `SKILL.md` for AI agents. After installing the CLI, agents can load the skill to automatically discover commands, configuration, and safety rules (e.g., in Codex/Claude-style agent environments). See [SKILL.md](SKILL.md).
-
 ## Development
 
 ```bash
