@@ -144,6 +144,10 @@ noiz-pseo-voice check "$VOICE_ID" --json || exit 1
 - 每次调用都有审计日志（caller、命令、结果），可用 `audit` 查询
 - 写命令尽量幂等，并可用 `dry-run` 预演
 
+## Agent 技能（skill）
+
+仓库自带 `SKILL.md`：AI agent 安装 CLI 后，可加载该技能自动发现命令、配置和安全规则（适用于 Codex / Claude 类 agent 环境）。见 [SKILL.md](SKILL.md)。
+
 ## 开发
 
 ```bash
