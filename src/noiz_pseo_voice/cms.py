@@ -136,12 +136,20 @@ class CmsClient:
             if isinstance(data, dict) and "doc" in data:
                 return data["doc"]
             return data
-        for field in ("voiceId", "canonicalSlug", "slug"):
+        # Flat filter: list_records() puts `filters` under params["where"]
+        # itself, so wrapping in {"where": ...} would double-nest and Payload
+        # answers HTTP 400 (voices get / check, v0.3.0 bug).
+        docs, _ = self.list_records(
+            {"voiceId": {"equals": key}}, limit=1, depth=depth
+        )
+        if docs:
+            return docs[0]
+        # Slug-style inputs map to canonicalSlug ("voice/{name}"), never the
+        # non-queryable `slug` path (v0.5.1: Payload 400 on where[slug]).
+        slug_variants = [key] if key.startswith("voice/") else [key, f"voice/{key}"]
+        for slug in slug_variants:
             docs, _ = self.list_records(
-                # Flat filter: list_records() puts `filters` under params["where"]
-                # itself, so wrapping in {"where": ...} would double-nest and
-                # Payload answers HTTP 400 (voices get / check, v0.3.0 bug).
-                {field: {"equals": key}}, limit=1, depth=depth
+                {"canonicalSlug": {"equals": slug}}, limit=1, depth=depth
             )
             if docs:
                 return docs[0]

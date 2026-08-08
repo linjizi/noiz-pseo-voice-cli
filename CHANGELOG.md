@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.1 — 2026-08-08
+
+- Fixed `get_record` slug fallback: slug inputs now query `canonicalSlug`
+  (including the `voice/` prefix variant) instead of the non-queryable `slug`
+  path, which returned CMS 400 (`voices get <slug>` / `check <slug>` /
+  `voice-to-page`)
+
 ## v0.5.0 — 2026-08-08
 
 - Added `voice-to-page` (A-tier): specified existing voiceId → auto landing page (ensure_voice → publicize hook → candidate/pipeline poll → check)

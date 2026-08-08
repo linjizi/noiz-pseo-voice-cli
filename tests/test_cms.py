@@ -41,3 +41,33 @@ def test_get_record_by_numeric_id_uses_direct_endpoint(monkeypatch):
     assert doc["id"] == 356
     assert captured["path"] == "/voice-detail-pages/356"
     assert captured["params"] == {"depth": 2, "draft": "false"}
+
+
+def test_get_record_by_slug_maps_to_canonical_slug(monkeypatch):
+    """v0.5.1 regression: slug input must query canonicalSlug (with the
+    voice/ prefix variant) — Payload 400s on where[slug]."""
+    client = CmsClient("https://example.invalid/seo-manage")
+    captured = []
+
+    def fake_request(path, params=None):
+        captured.append((path, params))
+        where = json.loads(params["where"]) if params and params.get("where") else {}
+        field = next(iter(where), None)
+        if (
+            field == "canonicalSlug"
+            and where["canonicalSlug"]["equals"] == "voice/my-slug"
+        ):
+            return {"docs": [{"voiceId": "v1", "canonicalSlug": "voice/my-slug"}], "totalDocs": 1}
+        return {"docs": [], "totalDocs": 0}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    doc = client.get_record("my-slug")
+
+    assert doc["voiceId"] == "v1"
+    fields = []
+    for _, params in captured:
+        where = json.loads(params["where"]) if params.get("where") else {}
+        fields.append(next(iter(where), None))
+    assert fields == ["voiceId", "canonicalSlug", "canonicalSlug"]
+    assert "slug" not in fields
+    assert fields.count("canonicalSlug") == 2
