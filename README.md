@@ -124,7 +124,7 @@ Precedence: environment variables > key=value file at `NOIZ_PSEO_VOICE_CONFIG` (
 | `NOIZ_VOICES_DB_URL` | DB commands | voices database DSN |
 | `NOIZ_CALLER_ID` | no | caller identity recorded in the audit log |
 | `NOIZ_AUDIT_LOG` | no | audit log path (default `~/.local/share/noiz-pseo-voice/audit.jsonl`) |
-| `NOIZ_PUBLICIZE_HOOK` | voice-to-page | hook to make a voice public: http(s) URL (POST JSON) or executable path (called with voice_id) |
+| `NOIZ_PUBLICIZE_HOOK` | voice-to-page | hook to make a voice public: http(s) URL (POST JSON) or shell command ending with the flag that takes voice_id (e.g. `... --apply --voice-id`) |
 | `NOIZ_ALERT_HOOK` | no | hook for `needs_review` outcomes (same URL/executable convention) |
 | `NOIZ_VOICE_CREATE_HOOK` | B-tier | voice design/clone hook (voice_design_clone.py); must return JSON with `voice_id` |
 

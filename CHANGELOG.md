@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.7 — 2026-08-08
+
+- Publicize/alert command hooks: the voice_id is appended as the final
+  positional argument; scripts needing a flag should end the configured hook
+  with it (e.g. `... --apply --voice-id`)
+
 ## v0.5.6 — 2026-08-08
 
 - B-tier voice create hook: parse full multi-line JSON output (fallback to

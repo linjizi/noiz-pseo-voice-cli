@@ -248,11 +248,11 @@ def test_command_string_hook_uses_shlex(monkeypatch):
 
     monkeypatch.setattr(commands.subprocess, "run", fake_run)
     detail = commands._run_hook(
-        "python /opt/convert_to_public.py --apply", {"voice_id": "v1", "reason": "r"}
+        "python /opt/convert_to_public.py --apply --voice-id", {"voice_id": "v1", "reason": "r"}
     )
     assert detail == "hook exit 0"
     assert captured["argv"] == [
-        "python", "/opt/convert_to_public.py", "--apply", "v1", "r",
+        "python", "/opt/convert_to_public.py", "--apply", "--voice-id", "v1",
     ]
 
 

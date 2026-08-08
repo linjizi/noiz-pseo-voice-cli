@@ -409,7 +409,10 @@ def _run_hook(hook: str, payload: dict[str, Any], timeout: int = 30) -> str:
             return f"hook HTTP {exc.code}"
         except Exception as exc:
             return f"hook failed: {exc}"
-    argv = shlex.split(hook) + [payload.get("voice_id", ""), payload.get("reason", "")]
+    # Command hooks receive the voice_id as the final positional argument.
+    # Scripts that need a flag (e.g. convert_to_public.py) should include it in
+    # the configured hook string: "... --apply --voice-id" (v0.5.7).
+    argv = shlex.split(hook) + [payload.get("voice_id", "")]
     proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
     return f"hook exit {proc.returncode}"
 
