@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.2 — 2026-08-08
+
+- Fixed `voice-to-page` crash with int record ids: `get_record` now coerces
+  the key to `str` before `.strip()` (AttributeError: 'int' object has no
+  attribute 'strip')
+
 ## v0.5.1 — 2026-08-08
 
 - Fixed `get_record` slug fallback: slug inputs now query `canonicalSlug`

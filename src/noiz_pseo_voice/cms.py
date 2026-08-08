@@ -130,7 +130,9 @@ class CmsClient:
         return docs, int(data.get("totalDocs", len(docs)))
 
     def get_record(self, key: str, depth: int = 2) -> dict[str, Any]:
-        key = key.strip()
+        # v0.5.2: callers may pass an int record id (voice-to-page polling);
+        # coerce before strip so numeric ids never raise AttributeError.
+        key = str(key).strip()
         if key.isdigit():
             data = self._request(f"/voice-detail-pages/{key}", {"depth": depth, "draft": "false"})
             if isinstance(data, dict) and "doc" in data:

@@ -43,6 +43,24 @@ def test_get_record_by_numeric_id_uses_direct_endpoint(monkeypatch):
     assert captured["params"] == {"depth": 2, "draft": "false"}
 
 
+def test_get_record_accepts_int_record_id(monkeypatch):
+    """v0.5.2 regression: voice-to-page polls with int record_id; get_record
+    must coerce to str instead of crashing on .strip()."""
+    client = CmsClient("https://example.invalid/seo-manage")
+    captured = {}
+
+    def fake_request(path, params=None):
+        captured["path"] = path
+        captured["params"] = params
+        return {"doc": {"id": 385, "voiceId": "v385", "pipelineStatus": "built"}}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+    doc = client.get_record(385)
+
+    assert doc["id"] == 385
+    assert captured["path"] == "/voice-detail-pages/385"
+
+
 def test_get_record_by_slug_maps_to_canonical_slug(monkeypatch):
     """v0.5.1 regression: slug input must query canonicalSlug (with the
     voice/ prefix variant) — Payload 400s on where[slug]."""
