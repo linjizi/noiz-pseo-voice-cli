@@ -1,3 +1,3 @@
 """noiz-pseo-voice-cli: read/write CLI for the Noiz voice SEO pipeline."""
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"

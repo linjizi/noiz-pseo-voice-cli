@@ -77,6 +77,9 @@ class Config:
         # Optional alert hook for needs_review outcomes (e.g. Slock channel
         # notification). Same http URL / executable path convention.
         self.alert_hook = merged.get("NOIZ_ALERT_HOOK", "").strip() or None
+        # B-tier voice create hook (voice_design_clone.py): URL POST JSON or
+        # shell command; must return JSON with voice_id.
+        self.voice_create_hook = merged.get("NOIZ_VOICE_CREATE_HOOK", "").strip() or None
         default_audit = Path.home() / ".local" / "share" / "noiz-pseo-voice" / "audit.jsonl"
         self.audit_log = Path(
             merged.get("NOIZ_AUDIT_LOG", str(default_audit))

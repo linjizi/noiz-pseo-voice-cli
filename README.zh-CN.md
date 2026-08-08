@@ -124,6 +124,7 @@ noiz-pseo-voice check "$VOICE_ID" --json || exit 1
 | `NOIZ_AUDIT_LOG` | 否 | 审计日志路径（默认 `~/.local/share/noiz-pseo-voice/audit.jsonl`） |
 | `NOIZ_PUBLICIZE_HOOK` | voice-to-page | 音色转 public 的钩子：http(s) URL（POST JSON）或可执行路径（参数传 voice_id） |
 | `NOIZ_ALERT_HOOK` | 否 | `needs_review` 结果的报警钩子（同上 URL/可执行约定） |
+| `NOIZ_VOICE_CREATE_HOOK` | B 档 | voice-design/clone 钩子（voice_design_clone.py）；必须返回含 `voice_id` 的 JSON |
 
 ## voice-to-page（A 档）
 
@@ -133,9 +134,26 @@ noiz-pseo-voice check "$VOICE_ID" --json || exit 1
 noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|false] [--dry-run]
 ```
 
-流程：`ensure_voice`（voices 库）→ `publicize`（非 public 时调钩子）→ 创建/轮询管线候选 → 最终 `check`。重复执行幂等：已有 built 记录会直接跳到 check。B/C 档参数（`--description/--character/--source/--ref-audio`）已预留但未实现。
+流程：`ensure_voice`（voices 库）→ `publicize`（非 public 时调钩子）→ 创建/轮询管线候选 → 最终 `check`。重复执行幂等：已有 built 记录会直接跳到 check。B 档（keyword+character/source 造音色出页）已支持；C 档（`--ref-audio`）未实现。
 
 退出码：`0` 成功、`1` 错误、`2` needs_review（非 public 音色 / content gate 待审 / 无 demo 素材——带 `reason`，可选触发 `NOIZ_ALERT_HOOK`）。每次运行写分步审计，并输出 `cost` 块（`voice_design` / `clone` / `demo`）用于 API 成本记账。
+
+## voice-to-page（B 档）
+
+从关键词造音色角色落地页（PRD v0.5.2）：
+
+```bash
+noiz-pseo-voice voice-to-page \
+  --keyword "jujutsu-kaisen-narrator" \
+  --character "Gojo Satoru" --source "Jujutsu Kaisen (MAPPA, 2020)" \
+  --description "young male, deep dramatic narrator, British English, calm authoritative, anime trailer" \
+  [--gender male] [--age young] [--labels "anime,dramatic"] [--language ja] \
+  [--scene anime] [--dry-run]
+# 或直接喂 keyword-explorer 导出：
+noiz-pseo-voice voice-to-page --input keyword-export.json
+```
+
+规则：`keyword` + `character`/`source`（成对）必填；`description` 20-500 字（可生成草案并用 `--confirm-description` 确认）；zh/ja/es 关键词必须传 `--language`；`--scene` 预填 gender/age/labels；词已挂音色（导出含 `voice_id`）时自动降级 A 档。
 
 ## 权限模型
 

@@ -107,11 +107,11 @@ def test_requires_voice_id(monkeypatch):
     assert "--voice-id" in result["error"]
 
 
-def test_rejects_b_tier_args(monkeypatch):
+def test_rejects_mixing_a_and_b_args(monkeypatch):
     cfg = _cfg(monkeypatch)
     result = commands.voice_to_page(cfg, ["--voice-id", "v1", "--description", "x"])
     assert result["ok"] is False
-    assert "not implemented" in result["error"]
+    assert "A-tier" in result["error"]
 
 
 def test_requires_db_url(monkeypatch):
@@ -251,3 +251,119 @@ def test_command_string_hook_uses_shlex(monkeypatch):
     assert captured["argv"] == [
         "python", "/opt/convert_to_public.py", "--apply", "v1", "r",
     ]
+
+
+# --- B-tier (PRD v0.5.2) -----------------------------------------------------
+
+B_DESC = "young male british calm authoritative narrator voice for anime trailers"
+
+
+def test_b_requires_keyword(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(cfg, ["--character", "Gojo", "--source", "JJK", "--description", B_DESC])
+    assert result["ok"] is False
+    assert "--keyword" in result["error"]
+
+
+def test_b_character_source_pairing(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(cfg, ["--keyword", "k", "--character", "Gojo", "--description", B_DESC])
+    assert result["ok"] is False
+    assert "together" in result["error"]
+
+
+def test_b_description_length_hard_check(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(cfg, ["--keyword", "k", "--character", "Gojo", "--source", "JJK", "--description", "x"])
+    assert result["ok"] is False
+    assert "20-500" in result["error"]
+
+
+def test_b_language_required_for_zh_keyword(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(
+        cfg,
+        ["--input", '{"keyword":"k","character":"c","source":"s","description":"%s","target_language":"zh"}' % B_DESC],
+    )
+    assert result["ok"] is False
+    assert "--language is required" in result["error"]
+
+
+def test_b_scene_prefill(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(
+        cfg,
+        ["--keyword", "k", "--character", "c", "--source", "s",
+         "--description", B_DESC, "--scene", "wellness", "--dry-run"],
+    )
+    assert result["ok"] is True
+    assert any(s["step"] == "scene_prefill" for s in result["steps"])
+    assert result["b_input"]["gender"] == "female"
+    assert result["b_input"]["age"] == "young"
+    assert "wellness" in result["b_input"]["labels"]
+
+
+def test_b_dry_run_shows_description_draft(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/voice_design_clone.py")
+    result = commands.voice_to_page(
+        cfg, ["--keyword", "k", "--character", "c", "--source", "s", "--dry-run"]
+    )
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert "description_draft" in result
+    assert any(s["step"] == "voice_create" and s["status"] == "dry_run" for s in result["steps"])
+
+
+def test_b_missing_description_needs_review(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(
+        cfg, ["--keyword", "k", "--character", "c", "--source", "s"]
+    )
+    assert result["ok"] is False
+    assert result["exit_code"] == 2
+    assert "description" in result["reason"]
+
+
+def test_b_voice_create_hook_then_a_flow(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/voice_design_clone.py --env test")
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vB"))
+    _install_built_after_create(monkeypatch, cms)
+    monkeypatch.setattr(commands, "_run_hook_json", lambda hook, payload, timeout=120: {"voice_id": "vB"})
+    result = commands.voice_to_page(
+        cfg, ["--keyword", "k", "--character", "c", "--source", "s",
+              "--description", B_DESC, "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert any(s["step"] == "voice_create" and s["status"] == "ok" for s in result["steps"])
+    assert result["voice_id"] == "vB"
+    assert result["page_hint"]["slug_base"] == "k"
+    assert result["b_input"]["keyword"] == "k"
+
+
+def test_b_keyword_shortcut_uses_existing_voice(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    cms.records["vShort"] = cms.records["42"] = {
+        "id": 42, "voiceId": "vShort", "pipelineStatus": "built",
+        "pipelineStaging": {"assets": [{"slug": "a"}]},
+    }
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vShort"))
+    result = commands.voice_to_page(
+        cfg,
+        ["--input", '{"keyword":"k","character":"c","source":"s","description":"%s","voice_id":"vShort"}' % B_DESC],
+    )
+    assert result["ok"] is True
+    assert any(s["step"] == "keyword_shortcut" for s in result["steps"])
+    assert result["voice_id"] == "vShort"
+
+
+def test_b_hook_missing_needs_review(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(
+        cfg, ["--keyword", "k", "--character", "c", "--source", "s",
+              "--description", B_DESC, "--confirm-description"]
+    )
+    assert result["ok"] is False
+    assert result["exit_code"] == 2
+    assert "NOIZ_VOICE_CREATE_HOOK" in result["reason"]

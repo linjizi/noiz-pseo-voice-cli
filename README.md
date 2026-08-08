@@ -126,6 +126,7 @@ Precedence: environment variables > key=value file at `NOIZ_PSEO_VOICE_CONFIG` (
 | `NOIZ_AUDIT_LOG` | no | audit log path (default `~/.local/share/noiz-pseo-voice/audit.jsonl`) |
 | `NOIZ_PUBLICIZE_HOOK` | voice-to-page | hook to make a voice public: http(s) URL (POST JSON) or executable path (called with voice_id) |
 | `NOIZ_ALERT_HOOK` | no | hook for `needs_review` outcomes (same URL/executable convention) |
+| `NOIZ_VOICE_CREATE_HOOK` | B-tier | voice design/clone hook (voice_design_clone.py); must return JSON with `voice_id` |
 
 ## voice-to-page (A-tier)
 
@@ -137,14 +138,35 @@ noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|f
 
 It runs `ensure_voice` (voices DB) → `publicize` (hook if not public) →
 create/poll the pipeline candidate → final `check`. Re-running is idempotent:
-an existing built record skips straight to `check`. B/C tiers
-(`--description/--character/--source/--ref-audio`) are reserved but not
+an existing built record skips straight to `check`. B-tier (create a voice from
+a keyword + character/source) is supported; C-tier (`--ref-audio`) is not
 implemented yet.
 
 Exit codes: `0` success, `1` error, `2` needs_review (non-public voice,
 content-gate review, or no demo assets — includes a `reason` and optionally
 fires `NOIZ_ALERT_HOOK`). Every run records per-step audit entries and a
 `cost` block (`voice_design` / `clone` / `demo`) for API accounting.
+
+## voice-to-page (B-tier)
+
+Create a voice character landing page from a keyword (PRD v0.5.2):
+
+```bash
+noiz-pseo-voice voice-to-page \
+  --keyword "jujutsu-kaisen-narrator" \
+  --character "Gojo Satoru" --source "Jujutsu Kaisen (MAPPA, 2020)" \
+  --description "young male, deep dramatic narrator, British English, calm authoritative, anime trailer" \
+  [--gender male] [--age young] [--labels "anime,dramatic"] [--language ja] \
+  [--scene anime] [--dry-run]
+# or feed a keyword-explorer export:
+noiz-pseo-voice voice-to-page --input keyword-export.json
+```
+
+Rules: `keyword` + `character`/`source` (paired) are required; `description`
+is 20-500 chars (a draft can be generated and confirmed with
+`--confirm-description`); `--language` is required for zh/ja/es keywords;
+`--scene` prefills gender/age/labels; if the keyword already has a voice
+(export `voice_id`), B-tier automatically downgrades to A-tier.
 
 ## Permission model
 

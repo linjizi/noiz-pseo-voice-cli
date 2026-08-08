@@ -167,10 +167,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_v2p.add_argument("--dry-run", action="store_true", help="preview without writes")
     p_v2p.add_argument("--poll-interval", type=int, default=20, help="seconds between status polls")
     p_v2p.add_argument("--timeout", type=int, default=1800, help="max seconds to wait for built")
-    # Reserved B/C-tier inputs (PRD v0.4): rejected until implemented.
-    p_v2p.add_argument("--description", help="B-tier: voice description (not implemented)")
-    p_v2p.add_argument("--character", help="B-tier: character/IP name (not implemented)")
-    p_v2p.add_argument("--source", help="B-tier: origin/source (not implemented)")
+    # B-tier inputs (PRD v0.5.2).
+    p_v2p.add_argument("--input", help="keyword-explorer export JSON file (or inline JSON)")
+    p_v2p.add_argument("--keyword", help="B-tier: target keyword")
+    p_v2p.add_argument("--description", help="B-tier: voice description (20-500 chars; or generate draft)")
+    p_v2p.add_argument("--character", help="B-tier: character/IP name (paired with --source)")
+    p_v2p.add_argument("--source", help="B-tier: origin/source (paired with --character)")
+    p_v2p.add_argument("--gender", help="B-tier: male|female|neutral")
+    p_v2p.add_argument("--age", help="B-tier: child|young|middleAged|old|neutral")
+    p_v2p.add_argument("--labels", help="B-tier: comma-separated labels")
+    p_v2p.add_argument("--language", help="B-tier: en|zh|ja|es (required for zh/ja/es keywords)")
+    p_v2p.add_argument("--scene", help="B-tier: scene for prefill (social_video/gaming/...)")
+    p_v2p.add_argument("--volume", help="B-tier: keyword volume signal")
+    p_v2p.add_argument("--tier", help="B-tier: keyword tier signal")
+    p_v2p.add_argument("--related", help="B-tier: related keywords (aliases seed)")
+    p_v2p.add_argument("--confirm-description", action="store_true",
+                       help="B-tier: confirm the generated description draft")
+    # Reserved C-tier input (PRD v0.4): rejected until implemented.
     p_v2p.add_argument("--ref-audio", help="C-tier: reference audio file/URL (not implemented)")
     return parser
 
@@ -217,17 +230,21 @@ def main(argv: list[str] | None = None) -> int:
                 rest.append(args.voice_id)
         elif command == "voice-to-page":
             fn = COMMANDS["voice-to-page"]
-            rest = ["--voice-id", args.voice_id]
-            if args.name:
-                rest += ["--name", args.name]
-            rest += ["--index", str(args.index)]
-            if args.dry_run:
-                rest += ["--dry-run"]
-            rest += ["--poll-interval", str(args.poll_interval), "--timeout", str(args.timeout)]
-            for flag in ("--description", "--character", "--source", "--ref-audio"):
+            rest = []
+            if args.voice_id:
+                rest += ["--voice-id", args.voice_id]
+            for flag in ("--input", "--keyword", "--description", "--character", "--source",
+                         "--gender", "--age", "--labels", "--language", "--scene",
+                         "--volume", "--tier", "--related", "--name", "--ref-audio"):
                 value = getattr(args, flag.lstrip("-").replace("-", "_"), None)
                 if value:
                     rest += [flag, value]
+            rest += ["--index", str(args.index)]
+            if args.dry_run:
+                rest += ["--dry-run"]
+            if args.confirm_description:
+                rest += ["--confirm-description"]
+            rest += ["--poll-interval", str(args.poll_interval), "--timeout", str(args.timeout)]
         else:
             fn = COMMANDS[command]
             if command == "check":

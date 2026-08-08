@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.5.3 — 2026-08-08
+
+- Added B-tier `voice-to-page`: keyword + character/source → voice create hook
+  (`NOIZ_VOICE_CREATE_HOOK`, voice_design_clone.py) → A-tier pipeline → check
+- PRD v0.5.2 input rules: character/source pairing, 20-500 char description
+  (draft + `--confirm-description`), zh/ja/es language requirement, scene
+  prefill table (11 scenes), keyword→voice shortcut, `--input <json>`
+
 ## v0.5.2 — 2026-08-08
 
 - Fixed `voice-to-page` crash with int record ids: `get_record` now coerces

@@ -434,7 +434,292 @@ def _needs_review(
     }
 
 
+def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 120) -> Optional[dict[str, Any]]:
+    """Call a hook and parse its JSON output (voice-create hook contract:
+    returns {"voice_id": ...}). URL → response body; command → stdout."""
+    try:
+        if hook.startswith(("http://", "https://")):
+            req = urllib.request.Request(
+                hook,
+                data=json.dumps(payload).encode(),
+                method="POST",
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read().decode("utf-8", "replace")
+        else:
+            argv = shlex.split(hook) + [payload.get("keyword", ""), payload.get("character", "")]
+            proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+            body = proc.stdout
+            if proc.returncode != 0:
+                return None
+        out = json.loads(body.strip().splitlines()[-1] if body.strip() else "{}")
+        return out if isinstance(out, dict) else None
+    except Exception:
+        return None
+
+
+# PRD v0.5.2 appendix: scene → gender/age/labels prefill (数据运营, 2026-08-08).
+SCENE_PREFILLS: dict[str, dict[str, Any]] = {
+    "social_video": {"gender": "neutral", "age": "young", "labels": ["social", "energetic", "modern"]},
+    "gaming": {"gender": "neutral", "age": "young", "labels": ["gaming", "dramatic"]},
+    "education": {"gender": "neutral", "age": "adult", "labels": ["education", "professional"]},
+    "podcast": {"gender": "neutral", "age": "adult", "labels": ["podcast", "conversational"]},
+    "advertising": {"gender": "neutral", "age": "young", "labels": ["advertising", "persuasive"]},
+    "audiobook": {"gender": "neutral", "age": "adult", "labels": ["audiobook", "storytelling"]},
+    "wellness": {"gender": "female", "age": "young", "labels": ["wellness", "calm", "empathetic"]},
+    "sports": {"gender": "neutral", "age": "adult", "labels": ["sports", "energetic", "commentator"]},
+    "entertainment": {"gender": "neutral", "age": "young", "labels": ["entertainment", "playful"]},
+    "drama": {"gender": "neutral", "age": "adult", "labels": ["drama", "emotional"]},
+    "anime": {"gender": "female", "age": "young", "labels": ["anime", "kawaii"]},
+}
+
+# Description five-dimension hints for the soft check (PRD v0.5.2).
+DESCRIPTION_DIM_HINTS = {
+    "gender/age": ("male", "female", "young", "old", "middle", "child", "boy", "girl", "man", "woman"),
+    "accent/dialect": ("accent", "british", "american", "mandarin", "japanese", "dialect", "english"),
+    "tone/mood": ("calm", "warm", "energetic", "dramatic", "authoritative", "gentle", "serious", "playful", "excited", "emotional"),
+    "style/scene": ("narration", "story", "anime", "podcast", "commercial", "audiobook", "tutorial", "game", "social", "wellness"),
+    "language": ("chinese", "mandarin", "japanese", "english", "spanish", "zh", "ja", "es", "en"),
+}
+
+
+def _load_b_input(raw: str) -> tuple[dict[str, Any], Optional[str]]:
+    """--input <json>: file path or inline JSON object. Returns (data, error)."""
+    text = raw.strip()
+    if not text.startswith("{"):
+        try:
+            with open(text, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as exc:
+            return {}, f"cannot read --input file {raw!r}: {exc}"
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        return {}, f"--input is not valid JSON: {exc}"
+    if not isinstance(data, dict):
+        return {}, "--input must be a JSON object"
+    return data, None
+
+
+def _validate_b_input(data: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Return (errors, warnings) for a merged B-tier input."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not data.get("keyword"):
+        errors.append("B mode requires --keyword (or input.keyword)")
+    character = data.get("character") or ""
+    source = data.get("source") or ""
+    if bool(character) != bool(source):
+        errors.append("--character and --source must be provided together")
+    desc = (data.get("description") or "").strip()
+    if desc and not (20 <= len(desc) <= 500):
+        errors.append(f"--description length must be 20-500 chars (got {len(desc)})")
+    if not desc:
+        warnings.append("--description missing; run --dry-run to preview the generated draft")
+    elif desc:
+        missing = []
+        for dim, hints in DESCRIPTION_DIM_HINTS.items():
+            lowered = desc.lower()
+            if not any(h in lowered for h in hints):
+                missing.append(dim)
+        if missing:
+            warnings.append("description may miss dimensions: " + ", ".join(missing))
+    target_language = data.get("target_language") or data.get("language")
+    if target_language in ("zh", "ja", "es") and not data.get("language"):
+        errors.append("--language is required when keyword locale is zh/ja/es")
+    return errors, warnings
+
+
+def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
+    """B-tier: keyword (+character/source) → voice design/clone hook → A flow."""
+    raw: dict[str, Any] = {}
+    input_path = None
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--input" and i + 1 < len(args):
+            input_path = args[i + 1]
+            i += 2
+        elif a in ("--keyword", "--character", "--source", "--description", "--gender",
+                   "--age", "--labels", "--language", "--scene", "--volume", "--tier",
+                   "--related", "--name", "--confirm-description", "--dry-run",
+                   "--poll-interval", "--timeout", "--index"):
+            key = a.lstrip("-")
+            if a == "--confirm-description":
+                raw["confirm_description"] = True
+            elif a == "--dry-run":
+                raw["dry_run"] = True
+            elif i + 1 < len(args):
+                value = args[i + 1]
+                raw[key] = value
+                i += 2
+                continue
+            i += 1
+        elif a == "--voice-id":
+            return {"ok": False, "error": "--voice-id is A-tier; use B-tier inputs"}
+        else:
+            return {"ok": False, "error": f"unknown B-tier argument {a!r}"}
+
+    data: dict[str, Any] = {}
+    if input_path:
+        loaded, err = _load_b_input(input_path)
+        if err:
+            return {"ok": False, "error": err}
+        data.update(loaded)
+    # Flags override JSON values.
+    for key, value in raw.items():
+        if key in ("confirm_description", "dry_run"):
+            data[key] = value
+        else:
+            data[key] = value
+
+    dry_run = bool(data.get("dry_run"))
+    errors, warnings = _validate_b_input(data)
+    if errors:
+        return {"ok": False, "exit_code": 1, "steps": [], "error": "; ".join(errors)}
+
+    steps: list[dict[str, Any]] = []
+
+    def add_step(name: str, status: str, detail: str = "") -> None:
+        steps.append({"step": name, "status": status, "detail": detail})
+
+    keyword = str(data["keyword"]).strip()
+    character = str(data.get("character") or "").strip()
+    source = str(data.get("source") or "").strip()
+    description = str(data.get("description") or "").strip()
+    scene = str(data.get("scene") or "").strip().lower()
+    name = str(data.get("name") or "").strip() or None
+    poll_interval = int(data.get("poll-interval") or data.get("poll_interval") or 20)
+    timeout = int(data.get("timeout") or 1800)
+    index = str(data.get("index") or "true").lower() not in ("false", "0", "no")
+
+    # Scene prefill (flags/JSON win over prefill).
+    if scene and scene in SCENE_PREFILLS:
+        pre = SCENE_PREFILLS[scene]
+        for key in ("gender", "age"):
+            if not data.get(key):
+                data[key] = pre[key]
+        if not data.get("labels"):
+            data["labels"] = ",".join(pre["labels"])
+        add_step("scene_prefill", "ok", f"prefilled from scene={scene}")
+
+    # keyword→voice shortcut (keyword-explorer export with an existing voice).
+    if data.get("voice_id"):
+        voice_id = str(data["voice_id"])
+        add_step("keyword_shortcut", "ok", f"keyword already has voice {voice_id}; downgrading to A-tier")
+    elif description:
+        voice_id = None
+        add_step("description", "ok", "user-provided description")
+    else:
+        draft = (
+            f"A {data.get('gender') or 'versatile'} {data.get('age') or ''} voice for "
+            f"{character or keyword} from {source or 'open source'}, suited for "
+            f"{scene or 'content'} narration, clear and expressive."
+        ).strip()
+        add_step("description", "dry_run" if dry_run else "needs_review",
+                 f"generated draft (confirm with --confirm-description or pass --description): {draft}")
+        if dry_run:
+            add_step("voice_create", "dry_run",
+                     "would call NOIZ_VOICE_CREATE_HOOK after description confirmed")
+            return {
+                "ok": True,
+                "exit_code": 0,
+                "dry_run": True,
+                "b_input": {k: data[k] for k in data if k != "confirm_description"},
+                "description_draft": draft,
+                "warnings": warnings,
+                "steps": steps,
+            }
+        if not data.get("confirm_description"):
+            return _needs_review(
+                "B mode requires --description or --confirm-description for the generated draft",
+                keyword,
+                steps,
+                cfg.alert_hook,
+            )
+        description = draft
+        data["description"] = description
+
+    if voice_id is None:
+        if dry_run:
+            add_step("voice_create", "dry_run", "would call NOIZ_VOICE_CREATE_HOOK")
+            return {
+                "ok": True,
+                "exit_code": 0,
+                "dry_run": True,
+                "b_input": {k: data[k] for k in data if k != "confirm_description"},
+                "steps": steps,
+                "warnings": warnings,
+            }
+        if not cfg.voice_create_hook:
+            add_step("voice_create", "needs_review",
+                     "NOIZ_VOICE_CREATE_HOOK not configured (B-tier needs voice_design_clone.py)")
+            return _needs_review(
+                "B-tier voice create hook not configured; set NOIZ_VOICE_CREATE_HOOK "
+                "(voice_design_clone.py) or use --voice-id (A-tier)",
+                keyword,
+                steps,
+                cfg.alert_hook,
+            )
+        payload = {
+            "keyword": keyword,
+            "character": character,
+            "source": source,
+            "description": description,
+            "gender": data.get("gender"),
+            "age": data.get("age"),
+            "labels": data.get("labels"),
+            "language": data.get("language"),
+            "scene": scene,
+            "env": "test",
+        }
+        result = _run_hook_json(cfg.voice_create_hook, payload)
+        if not result or not result.get("voice_id"):
+            add_step("voice_create", "needs_review", "hook did not return voice_id")
+            return _needs_review(
+                f"voice create hook failed to return voice_id ({result or 'no output'})",
+                keyword,
+                steps,
+                cfg.alert_hook,
+            )
+        voice_id = str(result["voice_id"])
+        add_step("voice_create", "ok", f"created voice {voice_id} via hook")
+
+    # Delegate to A-tier flow with the (existing/new) voice_id.
+    a_args = ["--voice-id", voice_id]
+    if name:
+        a_args += ["--name", name]
+    a_args += ["--index", "true"]
+    a_args[-1] = str(index)
+    if dry_run:
+        a_args += ["--dry-run"]
+    a_args += ["--poll-interval", str(poll_interval), "--timeout", str(timeout)]
+    a_result = _voice_to_page_a(cfg, a_args)
+
+    steps += a_result.get("steps", [])
+    a_result["steps"] = steps
+    a_result["page_hint"] = {
+        "name_base": name or keyword or character,
+        "slug_base": keyword or character,
+    }
+    a_result["b_input"] = {k: data[k] for k in data if k != "confirm_description"}
+    if warnings:
+        a_result["warnings"] = warnings
+    return a_result
+
+
 def voice_to_page(cfg: Config, args: list[str]) -> dict[str, Any]:
+    """A-tier (--voice-id) or B-tier (keyword/character/source) orchestration."""
+    b_markers = {"--input", "--keyword", "--character", "--source", "--scene",
+                 "--volume", "--tier", "--related", "--gender", "--age",
+                 "--language", "--confirm-description"}
+    if any(a in b_markers for a in args):
+        return _voice_to_page_b(cfg, args)
+    return _voice_to_page_a(cfg, args)
+
+
+def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
     """M1 / A-tier: specified existing voiceId → auto-generated landing page.
 
     Reuses the existing pipeline: ensure_voice (voices DB) → publicize hook →
@@ -469,9 +754,15 @@ def voice_to_page(cfg: Config, args: list[str]) -> dict[str, Any]:
         elif a == "--timeout" and i + 1 < len(args):
             timeout = max(10, int(args[i + 1]))
             i += 2
-        elif a in ("--description", "--character", "--source", "--ref-audio"):
+        elif a in ("--description", "--character", "--source"):
             reserved.append(a)
             i += 2 if i + 1 < len(args) and not args[i + 1].startswith("--") else 1
+        elif a == "--ref-audio":
+            return {
+                "ok": False,
+                "error": "C tier (--ref-audio) not implemented yet in v0.5.3; "
+                "use --voice-id (A) or B-tier inputs",
+            }
         else:
             return {
                 "ok": False,
@@ -483,8 +774,8 @@ def voice_to_page(cfg: Config, args: list[str]) -> dict[str, Any]:
     if reserved:
         return {
             "ok": False,
-            "error": "B/C tier (--description/--character/--source/--ref-audio) "
-            "not implemented yet in v0.5.0; use --voice-id",
+            "error": "B tier inputs belong to B mode; provide --keyword/--character/"
+            "--source together (or use --voice-id for A-tier)",
         }
 
     steps: list[dict[str, Any]] = []
