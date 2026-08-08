@@ -131,6 +131,17 @@ Precedence: environment variables > key=value file at `NOIZ_PSEO_VOICE_CONFIG` (
 - Two non-permission safeguards are kept: `dry-run` previews for write commands, and a local audit log for every invocation.
 - Store credentials in a 0600 file or environment variables; never commit them.
 
+## AI agents
+
+This repository ships a `SKILL.md` at the repo root so AI agents can discover
+the tool, its commands, and its safety rules without reading the source.
+Agents should:
+
+- Read `SKILL.md` before invoking the CLI (install, config, command list).
+- Prefer `--json` output for machine-readable results.
+- Use `dry-run` before any write command, and query `audit` to verify side effects.
+- Never put credentials in prompts, logs, or chat; they belong in a 0600 config file or environment variables.
+
 ## Security
 
 - Secrets only in environment variables or 0600 config files
