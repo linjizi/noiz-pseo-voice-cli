@@ -1,5 +1,7 @@
 # noiz-pseo-voice-cli
 
+**English** · [简体中文](README.zh-CN.md)
+
 CLI for operating a voice SEO pipeline: query pipeline state, run per-page acceptance checks, and manually create/update voice pages. Works for humans and AI agents alike — authentication is a CMS account, nothing else.
 
 > English: README.md · 简体中文：[README.zh-CN.md](README.zh-CN.md)
@@ -36,9 +38,9 @@ All commands support `--json` for structured output and `--help` for self-discov
 ## Install
 
 ```bash
-pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.0"
+pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
 # DB commands (queue / dry-run / enqueue) need the optional dependency:
-pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.0"
+pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
 ```
 
 ## Quick start
