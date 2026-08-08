@@ -418,3 +418,28 @@ def test_run_hook_json_writes_input_file(monkeypatch):
     assert captured["payload"]["keyword"] == "k"
     assert captured["payload"]["env"] == "test"
     assert not os.path.exists(captured["argv"][-1])
+
+
+def test_run_hook_json_parses_multiline_json(monkeypatch):
+    captured = {}
+
+    def fake_run(argv, capture_output=False, text=False, timeout=600):
+        captured["timeout"] = timeout
+        return type(
+            "P", (), {"returncode": 0,
+                      "stdout": '{\n  "voice_id": "vMulti",\n  "status": "created"\n}'}
+        )()
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+    out = commands._run_hook_json("python /tmp/x.py", {"keyword": "k"})
+    assert out == {"voice_id": "vMulti", "status": "created"}
+    assert captured["timeout"] == 600  # default 600s for slow B-tier hooks
+
+
+def test_run_hook_json_falls_back_to_last_line(monkeypatch):
+    def fake_run(argv, capture_output=False, text=False, timeout=600):
+        return type("P", (), {"returncode": 0, "stdout": 'log line\n{"voice_id":"vL"}'})()
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+    out = commands._run_hook_json("python /tmp/x.py", {"keyword": "k"})
+    assert out == {"voice_id": "vL"}

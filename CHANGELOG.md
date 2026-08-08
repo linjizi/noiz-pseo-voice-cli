@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.5.6 — 2026-08-08
+
+- B-tier voice create hook: parse full multi-line JSON output (fallback to
+  last-line JSONL); default hook timeout raised to 600s (voice design/clone
+  takes 2-3 min)
+
 ## v0.5.5 — 2026-08-08
 
 - B-tier voice create hook: command hooks now receive the payload as a temp

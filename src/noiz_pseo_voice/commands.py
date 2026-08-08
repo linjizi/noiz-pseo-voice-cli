@@ -436,7 +436,7 @@ def _needs_review(
     }
 
 
-def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 120) -> Optional[dict[str, Any]]:
+def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 600) -> Optional[dict[str, Any]]:
     """Call a hook and parse its JSON output (voice-create hook contract:
     returns {"voice_id": ...}). URL → POST JSON body; command → payload written
     to a temp JSON file and passed as --input <path> (voice_design_clone.py
@@ -466,7 +466,23 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 120) -> Op
                     pass
             if proc.returncode != 0:
                 return None
-        out = json.loads(body.strip().splitlines()[-1] if body.strip() else "{}")
+        # voice_design_clone.py prints indent=2 multi-line JSON; parse the
+        # whole body first, fall back to the last non-empty line (JSONL-style
+        # hooks) (v0.5.6).
+        stripped = body.strip()
+        try:
+            out = json.loads(stripped) if stripped else {}
+        except json.JSONDecodeError:
+            out = {}
+            for line in reversed(stripped.splitlines()):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    out = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                break
         return out if isinstance(out, dict) else None
     except Exception:
         return None
