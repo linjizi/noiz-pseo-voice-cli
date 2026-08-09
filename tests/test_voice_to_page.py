@@ -443,3 +443,83 @@ def test_run_hook_json_falls_back_to_last_line(monkeypatch):
     monkeypatch.setattr(commands.subprocess, "run", fake_run)
     out = commands._run_hook_json("python /tmp/x.py", {"keyword": "k"})
     assert out == {"voice_id": "vL"}
+
+
+# --- C-tier (PRD v0.6, M3) ----------------------------------------------------
+
+
+def test_c_requires_ref_audio(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(cfg, ["--name", "x"])
+    assert result["ok"] is False
+    assert "--ref-audio" in result["error"]
+
+
+def test_c_character_source_pairing(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(
+        cfg, ["--ref-audio", "/tmp/sample.mp3", "--character", "Person"]
+    )
+    assert result["ok"] is False
+    assert "together" in result["error"]
+
+
+def test_c_dry_run_no_hook_call(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/audio_clone.py")
+    calls = []
+
+    def record_hook(hook, payload, timeout=600):
+        calls.append(payload)
+        return {"voice_id": "vC"}
+
+    monkeypatch.setattr(commands, "_run_hook_json", record_hook)
+    result = commands.voice_to_page(cfg, ["--ref-audio", "/tmp/sample.mp3", "--dry-run"])
+    assert result["ok"] is True
+    assert result["dry_run"] is True
+    assert calls == []
+    assert any(s["step"] == "clone" and s["status"] == "dry_run" for s in result["steps"])
+
+
+def test_c_hook_missing_needs_review(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    result = commands.voice_to_page(cfg, ["--ref-audio", "/tmp/sample.mp3"])
+    assert result["ok"] is False
+    assert result["exit_code"] == 2
+    assert "NOIZ_VOICE_CREATE_HOOK" in result["reason"]
+
+
+def test_c_hook_returns_voice_id_then_a_flow(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/audio_clone.py --env test")
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vC"))
+    _install_built_after_create(monkeypatch, cms)
+    captured = {}
+
+    def fake_hook(hook, payload, timeout=600):
+        captured["payload"] = payload
+        return {"voice_id": "vC"}
+
+    monkeypatch.setattr(commands, "_run_hook_json", fake_hook)
+    result = commands.voice_to_page(
+        cfg, ["--ref-audio", "/tmp/sample.mp3", "--language", "ja", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert captured["payload"]["ref_audio"] == "/tmp/sample.mp3"
+    assert captured["payload"]["language"] == "ja"
+    assert captured["payload"]["env"] == "test"
+    assert result["voice_id"] == "vC"
+    assert result["page_hint"]["slug_base"] == "vC"
+    assert result["c_input"]["ref_audio"] == "/tmp/sample.mp3"
+
+
+def test_c_hook_needs_review_maps_to_exit_2(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/audio_clone.py")
+    _patch_env(monkeypatch, cms=FakeCms(), voice=PUBLIC_VOICE)
+    monkeypatch.setattr(
+        commands, "_run_hook_json",
+        lambda hook, payload, timeout=600: {"status": "needs_review", "reason": "audio quality low"},
+    )
+    result = commands.voice_to_page(cfg, ["--ref-audio", "/tmp/sample.mp3"])
+    assert result["ok"] is False
+    assert result["exit_code"] == 2
+    assert "audio quality low" in result["reason"]

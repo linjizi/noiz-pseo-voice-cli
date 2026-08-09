@@ -750,8 +750,137 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
     return a_result
 
 
+def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
+    """C-tier: reference audio → clone hook → A flow (PRD v0.6, M3)."""
+    raw: dict[str, Any] = {}
+    input_path = None
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--input" and i + 1 < len(args):
+            input_path = args[i + 1]
+            i += 2
+        elif a in ("--ref-audio", "--name", "--language", "--labels", "--gender",
+                   "--age", "--character", "--source", "--poll-interval",
+                   "--timeout", "--index"):
+            if i + 1 < len(args):
+                raw[a.lstrip("-")] = args[i + 1]
+                i += 2
+                continue
+            i += 1
+        elif a == "--dry-run":
+            raw["dry_run"] = True
+            i += 1
+        elif a == "--voice-id":
+            return {"ok": False, "error": "--voice-id is A-tier; use --ref-audio (C-tier)"}
+        else:
+            return {"ok": False, "error": f"unknown C-tier argument {a!r}"}
+
+    data: dict[str, Any] = {}
+    if input_path:
+        loaded, err = _load_b_input(input_path)
+        if err:
+            return {"ok": False, "error": err}
+        data.update(loaded)
+    for key, value in raw.items():
+        data[key] = value
+
+    dry_run = bool(data.get("dry_run"))
+    ref_audio = str(data.get("ref_audio") or "").strip()
+    character = str(data.get("character") or "").strip()
+    source = str(data.get("source") or "").strip()
+    if not ref_audio:
+        return {"ok": False, "exit_code": 1, "error": "C-tier requires --ref-audio <file|url>"}
+    if bool(character) != bool(source):
+        return {
+            "ok": False, "exit_code": 1,
+            "error": "--character and --source must be provided together (real-person compliance)",
+        }
+
+    steps: list[dict[str, Any]] = []
+
+    def add_step(name: str, status: str, detail: str = "") -> None:
+        steps.append({"step": name, "status": status, "detail": detail})
+
+    add_step("ref_audio", "ok", ref_audio)
+
+    if not cfg.voice_create_hook:
+        if dry_run:
+            add_step("clone", "dry_run", "would call NOIZ_VOICE_CREATE_HOOK (audio clone contract)")
+            return {
+                "ok": True, "exit_code": 0, "dry_run": True,
+                "c_input": data, "steps": steps,
+            }
+        add_step("clone", "needs_review", "NOIZ_VOICE_CREATE_HOOK not configured")
+        return _needs_review(
+            "C-tier audio clone hook not configured; set NOIZ_VOICE_CREATE_HOOK "
+            "(audio clone script) or use --voice-id (A-tier)",
+            ref_audio,
+            steps,
+            cfg.alert_hook,
+        )
+    if dry_run:
+        add_step("clone", "dry_run", "would call NOIZ_VOICE_CREATE_HOOK (audio clone contract)")
+        return {
+            "ok": True, "exit_code": 0, "dry_run": True,
+            "c_input": data, "steps": steps,
+        }
+
+    payload = {
+        "ref_audio": ref_audio,
+        "name": data.get("name"),
+        "language": data.get("language"),
+        "labels": data.get("labels"),
+        "gender": data.get("gender"),
+        "age": data.get("age"),
+        "character": character or None,
+        "source": source or None,
+        "env": cfg.voice_create_env,
+    }
+    result = _run_hook_json(cfg.voice_create_hook, payload)
+    if result and result.get("status") == "needs_review":
+        reason = (
+            str(result.get("reason") or result.get("detail") or "")
+            or "audio clone hook returned needs_review"
+        )
+        add_step("clone", "needs_review", reason)
+        return _needs_review(reason, ref_audio, steps, cfg.alert_hook)
+    if not result or not result.get("voice_id"):
+        add_step("clone", "needs_review", "hook did not return voice_id")
+        return _needs_review(
+            f"audio clone hook failed to return voice_id ({result or 'no output'})",
+            ref_audio,
+            steps,
+            cfg.alert_hook,
+        )
+    voice_id = str(result["voice_id"])
+    add_step("clone", "ok", f"cloned voice {voice_id} via hook")
+
+    a_args = ["--voice-id", voice_id]
+    if data.get("name"):
+        a_args += ["--name", str(data["name"])]
+    a_args += ["--index", str(data.get("index") or "true")]
+    if dry_run:
+        a_args += ["--dry-run"]
+    a_args += [
+        "--poll-interval", str(data.get("poll-interval") or 20),
+        "--timeout", str(data.get("timeout") or 1800),
+    ]
+    a_result = _voice_to_page_a(cfg, a_args)
+    steps += a_result.get("steps", [])
+    a_result["steps"] = steps
+    a_result["page_hint"] = {
+        "name_base": data.get("name") or voice_id,
+        "slug_base": data.get("name") or voice_id,
+    }
+    a_result["c_input"] = data
+    return a_result
+
+
 def voice_to_page(cfg: Config, args: list[str]) -> dict[str, Any]:
     """A-tier (--voice-id) or B-tier (keyword/character/source) orchestration."""
+    if "--ref-audio" in args:
+        return _voice_to_page_c(cfg, args)
     b_markers = {"--input", "--keyword", "--character", "--source", "--scene",
                  "--volume", "--tier", "--related", "--gender", "--age",
                  "--language", "--confirm-description"}
@@ -799,11 +928,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
             reserved.append(a)
             i += 2 if i + 1 < len(args) and not args[i + 1].startswith("--") else 1
         elif a == "--ref-audio":
-            return {
-                "ok": False,
-                "error": "C tier (--ref-audio) not implemented yet in v0.5.3; "
-                "use --voice-id (A) or B-tier inputs",
-            }
+            return {"ok": False, "error": "C-tier (--ref-audio) is a separate mode"}
         else:
             return {
                 "ok": False,

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.6.0 — 2026-08-09
+
+- Added C-tier `voice-to-page --ref-audio <file|url>`: audio → clone hook
+  (`NOIZ_VOICE_CREATE_HOOK`, same JSON `--input` contract, returns
+  `voice_id`) → A-tier pipeline → check; character/source pairing required
+  for real-person compliance
+
 ## v0.5.7 — 2026-08-08
 
 - Publicize/alert command hooks: the voice_id is appended as the final

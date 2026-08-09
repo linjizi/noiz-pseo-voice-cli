@@ -183,8 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_v2p.add_argument("--related", help="B-tier: related keywords (aliases seed)")
     p_v2p.add_argument("--confirm-description", action="store_true",
                        help="B-tier: confirm the generated description draft")
-    # Reserved C-tier input (PRD v0.4): rejected until implemented.
-    p_v2p.add_argument("--ref-audio", help="C-tier: reference audio file/URL (not implemented)")
+    p_v2p.add_argument("--ref-audio", help="C-tier: reference audio file/URL -> clone -> page")
     return parser
 
 

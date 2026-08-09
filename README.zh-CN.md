@@ -134,7 +134,7 @@ noiz-pseo-voice check "$VOICE_ID" --json || exit 1
 noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|false] [--dry-run]
 ```
 
-流程：`ensure_voice`（voices 库）→ `publicize`（非 public 时调钩子）→ 创建/轮询管线候选 → 最终 `check`。重复执行幂等：已有 built 记录会直接跳到 check。B 档（keyword+character/source 造音色出页）已支持；C 档（`--ref-audio`）未实现。
+流程：`ensure_voice`（voices 库）→ `publicize`（非 public 时调钩子）→ 创建/轮询管线候选 → 最终 `check`。重复执行幂等：已有 built 记录会直接跳到 check。B 档（keyword+character/source 造音色出页）与 C 档（`--ref-audio` 克隆出页）均已支持。
 
 退出码：`0` 成功、`1` 错误、`2` needs_review（非 public 音色 / content gate 待审 / 无 demo 素材——带 `reason`，可选触发 `NOIZ_ALERT_HOOK`）。每次运行写分步审计，并输出 `cost` 块（`voice_design` / `clone` / `demo`）用于 API 成本记账。
 
@@ -154,6 +154,18 @@ noiz-pseo-voice voice-to-page --input keyword-export.json
 ```
 
 规则：`keyword` + `character`/`source`（成对）必填；`description` 20-500 字（可生成草案并用 `--confirm-description` 确认）；zh/ja/es 关键词必须传 `--language`；`--scene` 预填 gender/age/labels；词已挂音色（导出含 `voice_id`）时自动降级 A 档。
+
+## voice-to-page（C 档）
+
+从参考音频克隆音色并出页（PRD v0.6）：
+
+```bash
+noiz-pseo-voice voice-to-page --ref-audio /path/sample.mp3 \
+  [--name "My Voice"] [--language en] [--character "Person"] [--source "Origin"] \
+  [--dry-run]
+```
+
+音频走 `NOIZ_VOICE_CREATE_HOOK`（音频克隆契约：同样 JSON `--input` payload，返回 `voice_id`），随后自动跑 A 档管线。`--character` 非空时 `--source` 必填（真人合规）。
 
 ## 权限模型
 

@@ -139,8 +139,8 @@ noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|f
 It runs `ensure_voice` (voices DB) → `publicize` (hook if not public) →
 create/poll the pipeline candidate → final `check`. Re-running is idempotent:
 an existing built record skips straight to `check`. B-tier (create a voice from
-a keyword + character/source) is supported; C-tier (`--ref-audio`) is not
-implemented yet.
+a keyword + character/source) and C-tier (`--ref-audio` → clone → page) are
+supported.
 
 Exit codes: `0` success, `1` error, `2` needs_review (non-public voice,
 content-gate review, or no demo assets — includes a `reason` and optionally
@@ -167,6 +167,20 @@ is 20-500 chars (a draft can be generated and confirmed with
 `--confirm-description`); `--language` is required for zh/ja/es keywords;
 `--scene` prefills gender/age/labels; if the keyword already has a voice
 (export `voice_id`), B-tier automatically downgrades to A-tier.
+
+## voice-to-page (C-tier)
+
+Clone a voice from a reference audio file/URL (PRD v0.6):
+
+```bash
+noiz-pseo-voice voice-to-page --ref-audio /path/sample.mp3 \
+  [--name "My Voice"] [--language en] [--character "Person"] [--source "Origin"] \
+  [--dry-run]
+```
+
+The audio goes to `NOIZ_VOICE_CREATE_HOOK` (audio clone contract: same JSON
+`--input` payload, returns `voice_id`), then the A-tier pipeline runs. If
+`--character` is set, `--source` is required (real-person compliance).
 
 ## Permission model
 

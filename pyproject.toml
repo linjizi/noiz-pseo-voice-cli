@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "noiz-pseo-voice-cli"
-version = "0.5.7"
+version = "0.6.0"
 description = "CLI for the Noiz voice SEO pipeline (external agent friendly)"
 readme = "README.md"
 requires-python = ">=3.10"
