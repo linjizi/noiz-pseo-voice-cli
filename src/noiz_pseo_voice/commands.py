@@ -764,7 +764,7 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
                    "--age", "--character", "--source", "--poll-interval",
                    "--timeout", "--index"):
             if i + 1 < len(args):
-                raw[a.lstrip("-")] = args[i + 1]
+                raw[a.lstrip("-").replace("-", "_")] = args[i + 1]
                 i += 2
                 continue
             i += 1

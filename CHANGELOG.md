@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.1 — 2026-08-09
+
+- Fixed C-tier flag parsing: hyphenated flags (`--ref-audio`,
+  `--poll-interval`) now map to underscore payload keys correctly
+
 ## v0.6.0 — 2026-08-09
 
 - Added C-tier `voice-to-page --ref-audio <file|url>`: audio → clone hook

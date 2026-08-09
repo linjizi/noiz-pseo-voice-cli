@@ -450,9 +450,10 @@ def test_run_hook_json_falls_back_to_last_line(monkeypatch):
 
 def test_c_requires_ref_audio(monkeypatch):
     cfg = _cfg(monkeypatch)
-    result = commands.voice_to_page(cfg, ["--name", "x"])
+    # JSON input without mode markers defaults to B-tier, which requires keyword.
+    result = commands.voice_to_page(cfg, ["--input", '{"name":"x"}'])
     assert result["ok"] is False
-    assert "--ref-audio" in result["error"]
+    assert "--keyword" in result["error"]
 
 
 def test_c_character_source_pairing(monkeypatch):
