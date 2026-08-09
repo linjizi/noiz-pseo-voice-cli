@@ -445,6 +445,20 @@ def test_run_hook_json_falls_back_to_last_line(monkeypatch):
     assert out == {"voice_id": "vL"}
 
 
+def test_run_hook_json_nonzero_exit_surfaces_diagnostics(monkeypatch):
+    def fake_run(argv, capture_output=False, text=False, timeout=600):
+        return type(
+            "P", (),
+            {"returncode": 1, "stdout": "", "stderr": "TTS submit failed: credit limit exceeded"},
+        )()
+
+    monkeypatch.setattr(commands.subprocess, "run", fake_run)
+    out = commands._run_hook_json("python /tmp/audio_clone.py", {"ref_audio": "/tmp/x.mp3"})
+    assert out["status"] == "needs_review"
+    assert "credit limit exceeded" in out["reason"]
+    assert "hook exit 1" in out["reason"]
+
+
 # --- C-tier (PRD v0.6, M3) ----------------------------------------------------
 
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.2 — 2026-08-09
+
+- Voice create hook non-zero exit now surfaces stderr/stdout tail in the
+  needs_review reason (quota/validation failures are actionable instead of
+  "no output")
+
 ## v0.6.1 — 2026-08-09
 
 - Fixed C-tier flag parsing: hyphenated flags (`--ref-audio`,

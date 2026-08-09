@@ -468,7 +468,13 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 600) -> Op
                 except OSError:
                     pass
             if proc.returncode != 0:
-                return None
+                # v0.6.2: surface the hook's own diagnostics instead of a bare
+                # "no output" so quota/validation failures are actionable.
+                tail = (proc.stderr or proc.stdout or "").strip()[-300:]
+                return {
+                    "status": "needs_review",
+                    "reason": f"voice create hook exit {proc.returncode}: {tail or 'no output'}",
+                }
         # voice_design_clone.py prints indent=2 multi-line JSON; parse the
         # whole body first, fall back to the last non-empty line (JSONL-style
         # hooks) (v0.5.6).
