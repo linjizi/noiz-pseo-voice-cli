@@ -198,4 +198,4 @@ pip install -e ".[dev,db]"
 pytest
 ```
 
-PRD 见 `docs/PRD.md`。许可证：MIT（见 `LICENSE`）。
+许可证：MIT（见 `LICENSE`）。

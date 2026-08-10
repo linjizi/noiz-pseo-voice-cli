@@ -215,4 +215,4 @@ pip install -e ".[dev,db]"
 pytest
 ```
 
-PRD: `docs/PRD.md`. License: MIT (see `LICENSE`).
+License: MIT (see `LICENSE`).
