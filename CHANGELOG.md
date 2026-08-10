@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.13 — 2026-08-10
+
+- B/C-tier delegation no longer forces `--index true`; index defaults to
+  false (staged indexing) unless explicitly passed
+
 ## v0.6.12 — 2026-08-10
 
 - Scene prefill adult-scenes use `age=neutral` (PM decision; conservative)

@@ -410,6 +410,22 @@ def test_b_voice_create_hook_then_a_flow(monkeypatch):
     assert result["voice_id"] == "vB"
     assert result["page_hint"]["slug_base"] == "k"
     assert result["b_input"]["keyword"] == "k"
+    # B delegation must NOT force index=true; A default false applies.
+    assert cms.last_create_fields["index"] is False
+
+
+def test_b_index_true_override(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/voice_design_clone.py --env test")
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vB"))
+    _install_built_after_create(monkeypatch, cms)
+    monkeypatch.setattr(commands, "_run_hook_json", lambda hook, payload, timeout=120: {"voice_id": "vB"})
+    result = commands.voice_to_page(
+        cfg, ["--keyword", "k", "--character", "c", "--source", "s",
+              "--description", B_DESC, "--index", "true", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert cms.last_create_fields["index"] is True
 
 
 def test_b_keyword_shortcut_uses_existing_voice(monkeypatch):
@@ -583,6 +599,8 @@ def test_c_hook_returns_voice_id_then_a_flow(monkeypatch):
     assert result["voice_id"] == "vC"
     assert result["page_hint"]["slug_base"] == "vC"
     assert result["c_input"]["ref_audio"] == "/tmp/sample.mp3"
+    # C delegation also defaults to index=false.
+    assert cms.last_create_fields["index"] is False
 
 
 def test_c_hook_needs_review_maps_to_exit_2(monkeypatch):

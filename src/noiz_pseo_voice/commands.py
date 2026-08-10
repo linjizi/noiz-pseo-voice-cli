@@ -739,7 +739,10 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
     name = str(data.get("name") or "").strip() or None
     poll_interval = int(data.get("poll-interval") or data.get("poll_interval") or 20)
     timeout = int(data.get("timeout") or 1800)
-    index = str(data.get("index") or "true").lower() not in ("false", "0", "no")
+    # Only pass index to A when the user explicitly set it; A defaults to
+    # index=false (staged indexing, v0.6.10).
+    raw_index = data.get("index")
+    index = str(raw_index).lower() not in ("false", "0", "no") if raw_index else None
 
     # Scene prefill (flags/JSON win over prefill).
     if scene and scene in SCENE_PREFILLS:
@@ -846,8 +849,8 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
     a_args = ["--voice-id", voice_id]
     if name:
         a_args += ["--name", name]
-    a_args += ["--index", "true"]
-    a_args[-1] = str(index)
+    if index is not None:
+        a_args += ["--index", str(index)]
     if dry_run:
         a_args += ["--dry-run"]
     a_args += ["--poll-interval", str(poll_interval), "--timeout", str(timeout)]
@@ -974,7 +977,8 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
     a_args = ["--voice-id", voice_id]
     if data.get("name"):
         a_args += ["--name", str(data["name"])]
-    a_args += ["--index", str(data.get("index") or "true")]
+    if data.get("index") is not None:
+        a_args += ["--index", str(data["index"])]
     if dry_run:
         a_args += ["--dry-run"]
     a_args += [
