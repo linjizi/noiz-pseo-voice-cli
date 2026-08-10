@@ -142,7 +142,7 @@ noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|f
 
 ## voice-to-page（B 档）
 
-从关键词造音色角色落地页（PRD v0.5.2）：
+从关键词造音色角色落地页：
 
 ```bash
 noiz-pseo-voice voice-to-page \
@@ -159,7 +159,7 @@ noiz-pseo-voice voice-to-page --input keyword-export.json
 
 ## voice-to-page（C 档）
 
-从参考音频克隆音色并出页（PRD v0.6）：
+从参考音频克隆音色并出页：
 
 ```bash
 noiz-pseo-voice voice-to-page --ref-audio /path/sample.mp3 \

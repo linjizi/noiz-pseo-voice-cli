@@ -151,7 +151,7 @@ fires `NOIZ_ALERT_HOOK`). Every run records per-step audit entries and a
 
 ## voice-to-page (B-tier)
 
-Create a voice character landing page from a keyword (PRD v0.5.2):
+Create a voice character landing page from a keyword:
 
 ```bash
 noiz-pseo-voice voice-to-page \
@@ -172,7 +172,7 @@ is 20-500 chars (a draft can be generated and confirmed with
 
 ## voice-to-page (C-tier)
 
-Clone a voice from a reference audio file/URL (PRD v0.6):
+Clone a voice from a reference audio file/URL:
 
 ```bash
 noiz-pseo-voice voice-to-page --ref-audio /path/sample.mp3 \
