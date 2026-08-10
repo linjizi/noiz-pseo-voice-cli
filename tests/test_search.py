@@ -18,13 +18,32 @@ def test_search_requires_query(monkeypatch):
     assert "usage" in result["error"]
 
 
-def test_search_requires_db_url(monkeypatch):
+def test_search_falls_back_to_cms_without_db_url(monkeypatch):
     monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
     monkeypatch.delenv("NOIZ_VOICES_DB_URL", raising=False)
     cfg = Config()
-    result = commands.voices_search(cfg, ["nar"])
-    assert result["ok"] is False
-    assert "NOIZ_VOICES_DB_URL" in result["error"]
+
+    class FakeCms:
+        def __init__(self, *args, **kwargs):
+            self.captured = {}
+
+        def list_records(self, filters, limit=100, depth=0, page=1):
+            self.captured["filters"] = filters
+            self.captured["limit"] = limit
+            return (
+                [{"voiceId": "v1", "name": "Narrator", "canonicalSlug": "voice/narrator", "pipelineStatus": "built"}],
+                1,
+            )
+
+    fake = FakeCms()
+    monkeypatch.setattr(commands, "CmsClient", lambda *a, **k: fake)
+    result = commands.voices_search(cfg, ["nar", "--limit", "5"])
+    assert result["ok"] is True
+    assert result["source"] == "cms"
+    assert result["voices"][0]["voice_id"] == "v1"
+    where = fake.captured["filters"]
+    assert where["or"][0] == {"voiceId": {"contains": "nar"}}
+    assert where["or"][1] == {"name": {"contains": "nar"}}
 
 
 def test_search_returns_rows(monkeypatch):

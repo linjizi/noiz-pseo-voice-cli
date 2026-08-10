@@ -22,7 +22,7 @@ voice SEO pipeline 通常以内部脚本的形式跑在 runner 机器上。这�
 | `permissions` | 只读 | 验证账号鉴权并展示权限模型 |
 | `status` | 只读 | 管线总览（CMS 状态计数 + 可选队列） |
 | `voices list [--status] [--locale] [--limit]` | 只读 | 列出记录 |
-| `voices search <query> [--limit]` | 只读 | 按名字/voice_id 在 voices 库搜 voice_id |
+| `voices search <query> [--limit]` | 只读 | 按名字/voice_id 搜 voice_id（有 DB 用 voices 库，否则走 CMS 记录） |
 | `voices get <id\|voiceId\|slug>` | 只读 | 获取单条记录 |
 | `voices create <voiceId> [--name] [--slug] [--status]` | 写 | 创建候选记录 |
 | `voices update <id> --set '<json>' [--status]` | 写 | 修改字段 / 推进状态 |

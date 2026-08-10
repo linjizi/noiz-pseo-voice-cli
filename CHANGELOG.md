@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.7 — 2026-08-10
+
+- `voices search` falls back to CMS voice-detail-pages (voiceId/name
+  contains) when NOIZ_VOICES_DB_URL is not configured — agents only need CMS
+  credentials
+
 ## v0.6.6 — 2026-08-10
 
 - Fixed `voices search` db test fake cursor context-manager support (test-only)

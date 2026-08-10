@@ -205,7 +205,38 @@ def voices_search(cfg: Config, args: list[str]) -> dict[str, Any]:
         else:
             i += 1
     if not cfg.voices_db_url:
-        return {"ok": False, "error": "NOIZ_VOICES_DB_URL required for voices search"}
+        # CMS fallback (Hermy 2026-08-10): agents often only have CMS creds.
+        # Search existing voice-detail-pages by voiceId/name (subset of the
+        # full library, but enough to discover ids for A-tier).
+        cms = CmsClient(cfg.cms_url, cfg.cms_api_key, cfg.cms_email, cfg.cms_password)
+        try:
+            docs, _ = cms.list_records(
+                {
+                    "or": [
+                        {"voiceId": {"contains": query}},
+                        {"name": {"contains": query}},
+                    ]
+                },
+                limit=limit,
+                depth=0,
+            )
+        except CmsError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {
+            "ok": True,
+            "query": query,
+            "source": "cms",
+            "returned": len(docs),
+            "voices": [
+                {
+                    "voice_id": d.get("voiceId"),
+                    "name": d.get("name"),
+                    "slug": d.get("canonicalSlug") or d.get("slug"),
+                    "status": d.get("pipelineStatus"),
+                }
+                for d in docs
+            ],
+        }
     try:
         rows = search_voices(cfg.voices_db_url, query, limit)
     except DbError as exc:
