@@ -8,6 +8,7 @@ import shlex
 import subprocess
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from typing import Any, Optional
 
@@ -205,9 +206,17 @@ def voices_search(cfg: Config, args: list[str]) -> dict[str, Any]:
         else:
             i += 1
     if not cfg.voices_db_url:
-        # CMS fallback (Hermy 2026-08-10): agents often only have CMS creds.
-        # Search existing voice-detail-pages by voiceId/name (subset of the
-        # full library, but enough to discover ids for A-tier).
+        # Public fallback (PM 2026-08-10, avoid spreading DB credentials):
+        # explore API keyword search first (no auth), CMS records second.
+        explore_rows = _explore_search(cfg.explore_base, query, limit)
+        if explore_rows:
+            return {
+                "ok": True,
+                "query": query,
+                "source": "explore",
+                "returned": len(explore_rows),
+                "voices": explore_rows,
+            }
         cms = CmsClient(cfg.cms_url, cfg.cms_api_key, cfg.cms_email, cfg.cms_password)
         try:
             docs, _ = cms.list_records(
@@ -242,6 +251,32 @@ def voices_search(cfg: Config, args: list[str]) -> dict[str, Any]:
     except DbError as exc:
         return {"ok": False, "error": str(exc)}
     return {"ok": True, "query": query, "returned": len(rows), "voices": rows}
+
+
+def _explore_search(base: str, query: str, limit: int) -> list[dict[str, Any]]:
+    """Search the public voice-library explore API by keyword (no creds)."""
+    url = (
+        f"{base.rstrip('/')}/api/v1/voice-library/explore"
+        f"?keyword={urllib.parse.quote(query)}&limit={max(1, min(100, limit))}"
+    )
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read())
+    except Exception:
+        return []
+    voices = ((body.get("data") or {}).get("voices")) or []
+    return [
+        {
+            "voice_id": v.get("voice_id"),
+            "display_name": v.get("display_name"),
+            "language": (v.get("meta") or {}).get("language"),
+            "is_public": bool(v.get("is_public")),
+            "voice_type": v.get("voice_type"),
+        }
+        for v in voices
+        if v.get("voice_id")
+    ]
 
 
 def voices_get(cfg: Config, args: list[str]) -> dict[str, Any]:

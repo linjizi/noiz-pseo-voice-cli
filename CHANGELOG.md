@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.8 — 2026-08-10
+
+- `voices search` without DB now queries the public voice-library explore API
+  (`keyword=` fuzzy match, no credentials) and falls back to CMS records when
+  empty; DB still wins when configured
+
 ## v0.6.7 — 2026-08-10
 
 - `voices search` falls back to CMS voice-detail-pages (voiceId/name

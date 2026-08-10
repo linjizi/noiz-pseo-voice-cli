@@ -18,18 +18,29 @@ def test_search_requires_query(monkeypatch):
     assert "usage" in result["error"]
 
 
-def test_search_falls_back_to_cms_without_db_url(monkeypatch):
+def test_search_falls_back_to_explore_without_db_url(monkeypatch):
     monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
     monkeypatch.delenv("NOIZ_VOICES_DB_URL", raising=False)
     cfg = Config()
 
-    class FakeCms:
-        def __init__(self, *args, **kwargs):
-            self.captured = {}
+    monkeypatch.setattr(
+        commands, "_explore_search",
+        lambda base, query, limit: [{"voice_id": "v1", "display_name": "Narrator"}],
+    )
+    result = commands.voices_search(cfg, ["nar", "--limit", "5"])
+    assert result["ok"] is True
+    assert result["source"] == "explore"
+    assert result["voices"][0]["voice_id"] == "v1"
 
+
+def test_search_explore_empty_falls_back_to_cms(monkeypatch):
+    monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
+    monkeypatch.delenv("NOIZ_VOICES_DB_URL", raising=False)
+    cfg = Config()
+    monkeypatch.setattr(commands, "_explore_search", lambda base, query, limit: [])
+
+    class FakeCms:
         def list_records(self, filters, limit=100, depth=0, page=1):
-            self.captured["filters"] = filters
-            self.captured["limit"] = limit
             return (
                 [{"voiceId": "v1", "name": "Narrator", "canonicalSlug": "voice/narrator", "pipelineStatus": "built"}],
                 1,
@@ -37,13 +48,36 @@ def test_search_falls_back_to_cms_without_db_url(monkeypatch):
 
     fake = FakeCms()
     monkeypatch.setattr(commands, "CmsClient", lambda *a, **k: fake)
-    result = commands.voices_search(cfg, ["nar", "--limit", "5"])
+    result = commands.voices_search(cfg, ["nar"])
     assert result["ok"] is True
     assert result["source"] == "cms"
-    assert result["voices"][0]["voice_id"] == "v1"
-    where = fake.captured["filters"]
-    assert where["or"][0] == {"voiceId": {"contains": "nar"}}
-    assert where["or"][1] == {"name": {"contains": "nar"}}
+
+
+def test_explore_search_parses_keyword_response(monkeypatch):
+    import urllib.request
+
+    captured = {}
+
+    class FakeResp:
+        def read(self):
+            return b'{"data":{"voices":[{"voice_id":"v1","display_name":"Narrator","is_public":true,"voice_type":"built-in","meta":{"language":"en"}}]}}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def fake_urlopen(req, timeout=15):
+        captured["url"] = req.full_url
+        return FakeResp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    rows = commands._explore_search("https://noiz.ai", "nar reader", 7)
+    assert rows[0]["voice_id"] == "v1"
+    assert rows[0]["language"] == "en"
+    assert "keyword=nar%20reader" in captured["url"]
+    assert "limit=7" in captured["url"]
 
 
 def test_search_returns_rows(monkeypatch):

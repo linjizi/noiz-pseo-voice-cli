@@ -68,6 +68,12 @@ class Config:
             merged.get("NOIZ_SITE_BASE", DEFAULT_SITE_BASE).rstrip("/")
         )
         self.voices_db_url = merged.get("NOIZ_VOICES_DB_URL", "").strip() or None
+        # Public voice-library explore API (no credentials needed) used by
+        # `voices search` when NOIZ_VOICES_DB_URL is not configured.
+        self.explore_base = (
+            merged.get("NOIZ_EXPLORE_BASE", "https://noiz.ai").strip().rstrip("/")
+            or "https://noiz.ai"
+        )
         self.caller_id = merged.get("NOIZ_CALLER_ID", "").strip() or None
         # voice-to-page publicization hook: an http(s) URL (POST JSON
         # {"voice_id": ...}) or an executable path (called with voice_id as
