@@ -13,9 +13,9 @@ and the public voice-library API. Every command supports `--json`; exit code is
 ## Install
 
 ```bash
-pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.8"
+pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.13"
 # DB-backed commands (queue / dry-run / enqueue) need the extra dependency:
-pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.8"
+pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.13"
 ```
 
 ## Configure

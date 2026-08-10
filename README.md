@@ -40,9 +40,9 @@ All commands support `--json` for structured output and `--help` for self-discov
 ## Install
 
 ```bash
-pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
+pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.13"
 # DB commands (queue / dry-run / enqueue) need the optional dependency:
-pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
+pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.13"
 ```
 
 ## Quick start

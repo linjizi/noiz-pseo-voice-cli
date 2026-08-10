@@ -38,9 +38,9 @@ voice SEO pipeline 通常以内部脚本的形式跑在 runner 机器上。这�
 ## 安装
 
 ```bash
-pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
+pip install "git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.13"
 # DB 命令（queue / dry-run / enqueue）需要可选依赖：
-pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.4.1"
+pip install "noiz-pseo-voice-cli[db] @ git+https://github.com/linjizi/noiz-pseo-voice-cli.git@v0.6.13"
 ```
 
 ## 快速开始
