@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.3 — 2026-08-10
+
+- URL publicize hooks support an optional Bearer token via
+  `NOIZ_PUBLICIZE_TOKEN` (prod visibility API contract)
+
 ## v0.6.2 — 2026-08-09
 
 - Voice create hook non-zero exit now surfaces stderr/stdout tail in the

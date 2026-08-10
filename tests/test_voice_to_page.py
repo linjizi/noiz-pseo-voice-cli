@@ -256,6 +256,39 @@ def test_command_string_hook_uses_shlex(monkeypatch):
     ]
 
 
+def test_url_hook_sends_bearer_token(monkeypatch):
+    import urllib.request
+
+    captured = {}
+
+    def fake_urlopen(req, timeout=30):
+        captured["headers"] = {k: v for k, v in req.header_items()}
+        return type("R", (), {"status": 200, "__enter__": lambda s: s, "__exit__": lambda *a: False})()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    detail = commands._run_hook(
+        "https://noiz.ai/api/v1/voices/v1/publicize",
+        {"voice_id": "v1"},
+        token="secret-token",
+    )
+    assert detail == "hook HTTP 200"
+    assert captured["headers"]["Authorization"] == "Bearer secret-token"
+
+
+def test_url_hook_without_token_has_no_auth_header(monkeypatch):
+    import urllib.request
+
+    captured = {}
+
+    def fake_urlopen(req, timeout=30):
+        captured["headers"] = {k: v for k, v in req.header_items()}
+        return type("R", (), {"status": 200, "__enter__": lambda s: s, "__exit__": lambda *a: False})()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    commands._run_hook("https://noiz.ai/api/v1/voices/v1/publicize", {"voice_id": "v1"})
+    assert "Authorization" not in captured["headers"]
+
+
 # --- B-tier (PRD v0.5.2) -----------------------------------------------------
 
 B_DESC = "young male british calm authoritative narrator voice for anime trailers"

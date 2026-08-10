@@ -393,14 +393,22 @@ def audit(cfg: Config, args: list[str]) -> dict[str, Any]:
     return {"ok": True, "log": str(cfg.audit_log), "entries": rows}
 
 
-def _run_hook(hook: str, payload: dict[str, Any], timeout: int = 30) -> str:
+def _run_hook(
+    hook: str,
+    payload: dict[str, Any],
+    timeout: int = 30,
+    token: Optional[str] = None,
+) -> str:
     """Call a configured hook: http(s) URL → POST JSON; else executable path."""
     if hook.startswith(("http://", "https://")):
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
         req = urllib.request.Request(
             hook,
             data=json.dumps(payload).encode(),
             method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers=headers,
         )
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -988,7 +996,11 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
     elif dry_run:
         add_step("publicize", "dry_run", "would call NOIZ_PUBLICIZE_HOOK")
     elif cfg.publicize_hook:
-        detail = _run_hook(cfg.publicize_hook, {"voice_id": voice_id})
+        detail = _run_hook(
+            cfg.publicize_hook,
+            {"voice_id": voice_id},
+            token=cfg.publicize_token,
+        )
         add_step("publicize", "requested", detail)
     else:
         add_step(

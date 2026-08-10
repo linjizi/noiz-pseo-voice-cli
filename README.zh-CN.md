@@ -123,6 +123,7 @@ noiz-pseo-voice check "$VOICE_ID" --json || exit 1
 | `NOIZ_CALLER_ID` | 否 | 审计日志里的调用方标识 |
 | `NOIZ_AUDIT_LOG` | 否 | 审计日志路径（默认 `~/.local/share/noiz-pseo-voice/audit.jsonl`） |
 | `NOIZ_PUBLICIZE_HOOK` | voice-to-page | 音色转 public 的钩子：http(s) URL（POST JSON）或以 `--voice-id` 结尾的 shell 命令（自动追加 voice_id） |
+| `NOIZ_PUBLICIZE_TOKEN` | 否 | URL 型 publicize 钩子的可选 Bearer token（prod visibility API） |
 | `NOIZ_ALERT_HOOK` | 否 | `needs_review` 结果的报警钩子（同上 URL/可执行约定） |
 | `NOIZ_VOICE_CREATE_HOOK` | B 档 | voice-design/clone 钩子（voice_design_clone.py）；必须返回含 `voice_id` 的 JSON |
 

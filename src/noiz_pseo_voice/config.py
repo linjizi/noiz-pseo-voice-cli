@@ -80,6 +80,8 @@ class Config:
         # B-tier voice create hook (voice_design_clone.py): URL POST JSON or
         # shell command; must return JSON with voice_id.
         self.voice_create_hook = merged.get("NOIZ_VOICE_CREATE_HOOK", "").strip() or None
+        # Optional Bearer token for URL publicize hooks (prod visibility API).
+        self.publicize_token = merged.get("NOIZ_PUBLICIZE_TOKEN", "").strip() or None
         # Target environment for the B-tier voice create hook (default test).
         self.voice_create_env = merged.get("NOIZ_VOICE_CREATE_ENV", "test").strip() or "test"
         default_audit = Path.home() / ".local" / "share" / "noiz-pseo-voice" / "audit.jsonl"
