@@ -16,7 +16,14 @@ from .audit import append, query
 from .checks import run_checks
 from .cms import CmsClient, CmsError
 from .config import Config
-from .db import DbError, enqueue_voice, queue_counts, queue_voice_exists, voice_by_id
+from .db import (
+    DbError,
+    enqueue_voice,
+    queue_counts,
+    queue_voice_exists,
+    search_voices,
+    voice_by_id,
+)
 
 
 def _now_iso() -> str:
@@ -180,6 +187,32 @@ def voices_list(cfg: Config, args: list[str]) -> dict[str, Any]:
     return {"ok": True, "total": total, "returned": len(rows), "voices": rows}
 
 
+def voices_search(cfg: Config, args: list[str]) -> dict[str, Any]:
+    """Search the voices DB by name/voice_id to discover ids for
+    voice-to-page (cathan 2026-08-10)."""
+    if not args:
+        return {"ok": False, "error": "usage: voices search <query> [--limit N]"}
+    query = args[0]
+    limit = 20
+    i = 1
+    while i < len(args):
+        if args[i] == "--limit" and i + 1 < len(args):
+            try:
+                limit = max(1, min(100, int(args[i + 1])))
+            except ValueError:
+                pass
+            i += 2
+        else:
+            i += 1
+    if not cfg.voices_db_url:
+        return {"ok": False, "error": "NOIZ_VOICES_DB_URL required for voices search"}
+    try:
+        rows = search_voices(cfg.voices_db_url, query, limit)
+    except DbError as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "query": query, "returned": len(rows), "voices": rows}
+
+
 def voices_get(cfg: Config, args: list[str]) -> dict[str, Any]:
     if not args:
         return {"ok": False, "error": "usage: voices get <id|voiceId|slug>"}
@@ -276,12 +309,14 @@ def voices_update(cfg: Config, args: list[str]) -> dict[str, Any]:
 
 def voices(cfg: Config, args: list[str]) -> dict[str, Any]:
     if not args:
-        return {"ok": False, "error": "usage: voices list|get <key>|create <voiceId>|update <id>"}
+        return {"ok": False, "error": "usage: voices list|search <query>|get <key>|create <voiceId>|update <id>"}
     sub = args[0]
     if sub == "get":
         return voices_get(cfg, args[1:])
     if sub == "list":
         return voices_list(cfg, args[1:])
+    if sub == "search":
+        return voices_search(cfg, args[1:])
     if sub == "create":
         return voices_create(cfg, args[1:])
     if sub == "update":

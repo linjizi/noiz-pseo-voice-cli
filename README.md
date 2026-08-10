@@ -24,6 +24,7 @@ Voice SEO pipelines usually live as internal scripts on a runner machine. This C
 | `permissions` | read | verify auth and show the permission model |
 | `status` | read | pipeline overview (CMS counts + optional queue) |
 | `voices list [--status] [--locale] [--limit]` | read | list records |
+| `voices search <query> [--limit]` | read | find voice_ids by name/voice_id in the voices DB |
 | `voices get <id\|voiceId\|slug>` | read | get one record |
 | `voices create <voiceId> [--name] [--slug] [--status]` | write | create a candidate record |
 | `voices update <id> --set '<json>' [--status]` | write | patch fields / advance status |

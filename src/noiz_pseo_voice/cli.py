@@ -133,6 +133,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_list.add_argument("--status", help="filter by pipelineStatus")
     p_list.add_argument("--locale", help="filter by locale")
     p_list.add_argument("--limit", type=int, default=50, help="max rows (default 50)")
+    p_search = vsub.add_parser("search", help="find voice_ids by name/voice_id in the voices DB")
+    p_search.add_argument("query", help="display_name or voice_id substring")
+    p_search.add_argument("--limit", type=int, default=20, help="max rows (default 20)")
     p_get = vsub.add_parser("get", help="get one record by id/voiceId/slug")
     p_get.add_argument("key", help="id, voiceId or slug")
     p_create = vsub.add_parser("create", help="create a candidate record (any authenticated account)")
@@ -211,6 +214,9 @@ def main(argv: list[str] | None = None) -> int:
                 rest += ["--limit", str(args.limit)]
             elif args.voices_sub == "get":
                 rest = ["get", args.key]
+            elif args.voices_sub == "search":
+                rest = ["search", args.query]
+                rest += ["--limit", str(args.limit)]
             elif args.voices_sub == "create":
                 rest = ["create", args.voice_id]
                 if args.name:

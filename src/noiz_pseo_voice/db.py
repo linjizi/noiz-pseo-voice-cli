@@ -88,6 +88,37 @@ def voice_by_id(dsn: str, voice_id: str) -> Optional[dict[str, Any]]:
         conn.close()
 
 
+def search_voices(dsn: str, query: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Find voice_ids by display_name/voice_id fuzzy match (cathan 2026-08-10:
+    frontend users don't see voice ids; this is the discovery command feeding
+    voice-to-page --voice-id)."""
+    conn = _connect(dsn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT voice_id, display_name, language, is_public, status, voice_type "
+                "FROM voices "
+                "WHERE (display_name ILIKE %s OR voice_id ILIKE %s) "
+                "AND delete_time IS NULL "
+                "ORDER BY id DESC LIMIT %s",
+                (f"%{query}%", f"%{query}%", max(1, min(100, limit))),
+            )
+            rows = cur.fetchall()
+        return [
+            {
+                "voice_id": row[0],
+                "display_name": row[1],
+                "language": row[2],
+                "is_public": bool(row[3]),
+                "status": row[4],
+                "voice_type": row[5],
+            }
+            for row in rows
+        ]
+    finally:
+        conn.close()
+
+
 def enqueue_voice(dsn: str, voice_id: str) -> str:
     conn = _connect(dsn)
     try:

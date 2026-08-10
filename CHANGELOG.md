@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.5 — 2026-08-10
+
+- Added `voices search <query>`: discover voice_ids by display_name/voice_id
+  fuzzy match in the voices DB (feeds `voice-to-page --voice-id`)
+
 ## v0.6.3 — 2026-08-10
 
 - URL publicize hooks support an optional Bearer token via
