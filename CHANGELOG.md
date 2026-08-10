@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.6.12 — 2026-08-10
+
+- Scene prefill adult-scenes use `age=neutral` (PM decision; conservative)
+
 ## v0.6.11 — 2026-08-10
 
 - Scene prefill: adult-scenes (education/podcast/audiobook/sports/drama) now
