@@ -93,6 +93,7 @@ def _patch_env(monkeypatch, cms=None, voice=None, hook_calls=None):
 
 def _install_built_after_create(monkeypatch, cms):
     def built_after_create(fields):
+        cms.last_create_fields = fields
         created = FakeCms.create_record(cms, fields)
         rid = created["id"]
         rec = cms.records[str(rid)]
@@ -187,6 +188,20 @@ def test_happy_path_create_poll_check(monkeypatch):
     assert result["cost"]["voice_design"] == 0
     assert result["cost"]["clone"] == 0
     assert any(s["step"] == "check" and s["status"] == "ok" for s in result["steps"])
+    # Default index=false (staged indexing); explicit --index true overrides.
+    assert cms.last_create_fields["index"] is False
+
+
+def test_index_true_overrides_default(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    _install_built_after_create(monkeypatch, cms)
+    result = commands.voice_to_page(
+        cfg, ["--voice-id", "v1", "--index", "true", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert cms.last_create_fields["index"] is True
 
 
 def test_existing_built_skips_create(monkeypatch):

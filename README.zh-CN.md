@@ -138,6 +138,8 @@ noiz-pseo-voice voice-to-page --voice-id <voiceId> [--name NAME] [--index true|f
 
 流程：`ensure_voice`（voices 库）→ `publicize`（非 public 时调钩子）→ 创建/轮询管线候选 → 最终 `check`。重复执行幂等：已有 built 记录会直接跳到 check。B 档（keyword+character/source 造音色出页）与 C 档（`--ref-audio` 克隆出页）均已支持。
 
+新页默认 `index=false`（分波收录），需要立即可收录时显式传 `--index true`。
+
 退出码：`0` 成功、`1` 错误、`2` needs_review（非 public 音色 / content gate 待审 / 无 demo 素材——带 `reason`，可选触发 `NOIZ_ALERT_HOOK`）。每次运行写分步审计，并输出 `cost` 块（`voice_design` / `clone` / `demo`）用于 API 成本记账。
 
 ## voice-to-page（B 档）

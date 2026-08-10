@@ -1013,7 +1013,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
     """
     voice_id = ""
     name = None
-    index = True
+    index = False  # staged indexing: new pages default noindex (PM 2026-08-10)
     dry_run = False
     poll_interval = 20
     timeout = 1800

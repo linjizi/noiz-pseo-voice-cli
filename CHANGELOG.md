@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.10 — 2026-08-10
+
+- `voice-to-page` new candidates default to `index=false` (staged indexing,
+  PM 2026-08-10); `--index true` overrides
+
 ## v0.6.9 — 2026-08-10
 
 - Fixed `voices search` text rendering: it no longer reuses the list renderer

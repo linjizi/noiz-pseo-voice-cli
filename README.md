@@ -142,7 +142,8 @@ It runs `ensure_voice` (voices DB) → `publicize` (hook if not public) →
 create/poll the pipeline candidate → final `check`. Re-running is idempotent:
 an existing built record skips straight to `check`. B-tier (create a voice from
 a keyword + character/source) and C-tier (`--ref-audio` → clone → page) are
-supported.
+supported. New pages default to `index=false` (staged indexing); pass
+`--index true` to make a page eligible immediately.
 
 Exit codes: `0` success, `1` error, `2` needs_review (non-public voice,
 content-gate review, or no demo assets — includes a `reason` and optionally
