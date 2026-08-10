@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.9 — 2026-08-10
+
+- Fixed `voices search` text rendering: it no longer reuses the list renderer
+  (`KeyError: total`); prints query/source/returned + rows
+
 ## v0.6.8 — 2026-08-10
 
 - `voices search` without DB now queries the public voice-library explore API

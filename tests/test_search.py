@@ -1,4 +1,5 @@
 import noiz_pseo_voice.commands as commands
+import noiz_pseo_voice.cli as cli
 from noiz_pseo_voice import db
 from noiz_pseo_voice.config import Config
 
@@ -78,6 +79,22 @@ def test_explore_search_parses_keyword_response(monkeypatch):
     assert rows[0]["language"] == "en"
     assert "keyword=nar%20reader" in captured["url"]
     assert "limit=7" in captured["url"]
+
+
+def test_search_text_render_does_not_require_total():
+    # Hermy 2026-08-10: text mode crashed with KeyError 'total' because the
+    # list renderer was reused; search returns {returned, voices} not {total}.
+    result = {
+        "ok": True,
+        "query": "nar",
+        "source": "explore",
+        "returned": 1,
+        "voices": [{"voice_id": "v1", "display_name": "Narrator", "language": "en"}],
+    }
+    text = cli._render_text(result, "voices")
+    assert "search nar" in text
+    assert "v1" in text
+    assert "Narrator" in text
 
 
 def test_search_returns_rows(monkeypatch):

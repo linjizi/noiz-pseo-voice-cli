@@ -47,10 +47,21 @@ def _render_text(result: dict[str, Any], command: str) -> str:
                 f"slug={rec.get('canonicalSlug') or rec.get('slug') or '-'}"
             )
         else:
-            lines.append(f"total {result['total']}, returned {result['returned']}")
+            if "total" in result:
+                lines.append(f"total {result['total']}, returned {result['returned']}")
+            else:
+                lines.append(
+                    f"search {result.get('query', '')}: "
+                    f"{result.get('returned', len(result.get('voices', [])))} result(s) "
+                    f"(source={result.get('source', '?')})"
+                )
             for v in result.get("voices", []):
                 lines.append(
-                    f"{v['id']}\t{v['voiceId']}\t{v['status']}\t{v['slug'] or '-'}\t{v['updatedAt'] or '-'}"
+                    f"{(v.get('id') or v.get('voice_id') or '-')}\t"
+                    f"{(v.get('display_name') or v.get('name') or v.get('voiceId') or v.get('voice_id') or '-')}\t"
+                    f"{(v.get('status') or v.get('pipelineStatus') or '-')}\t"
+                    f"{(v.get('slug') or v.get('canonicalSlug') or '-')}\t"
+                    f"{(v.get('updatedAt') or v.get('language') or '-')}"
                 )
     elif command == "check":
         if "error" in result:
