@@ -84,7 +84,7 @@ def _patch_env(monkeypatch, cms=None, voice=None, hook_calls=None):
     monkeypatch.setattr(commands, "run_checks", _fake_checks)
     monkeypatch.setattr(commands.time, "sleep", lambda s: None)
     if hook_calls is not None:
-        def record_hook(hook, payload, timeout=30):
+        def record_hook(hook, payload, timeout=30, token=None):
             hook_calls.append((hook, payload))
             return "hook exit 0"
         monkeypatch.setattr(commands, "_run_hook", record_hook)
