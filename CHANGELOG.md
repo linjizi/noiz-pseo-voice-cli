@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.6.6 — 2026-08-10
+
+- Fixed `voices search` db test fake cursor context-manager support (test-only)
+
 ## v0.6.5 — 2026-08-10
 
 - Added `voices search <query>`: discover voice_ids by display_name/voice_id

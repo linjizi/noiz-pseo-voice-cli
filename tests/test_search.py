@@ -46,6 +46,12 @@ def test_search_voices_sql_shape(monkeypatch):
             self.calls = []
             self.rows = [("v1", "Narrator", "en", True, "active", "built-in")]
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
         def execute(self, sql, params=None):
             self.calls.append((sql, params))
 
