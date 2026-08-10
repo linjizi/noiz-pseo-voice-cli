@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.11 — 2026-08-10
+
+- Scene prefill: adult-scenes (education/podcast/audiobook/sports/drama) now
+  prefill `age=middleAged` (adult is not a valid clone-api alias)
+
 ## v0.6.10 — 2026-08-10
 
 - `voice-to-page` new candidates default to `index=false` (staged indexing,

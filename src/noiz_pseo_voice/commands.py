@@ -610,14 +610,14 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 600) -> Op
 SCENE_PREFILLS: dict[str, dict[str, Any]] = {
     "social_video": {"gender": "neutral", "age": "young", "labels": ["social", "energetic", "modern"]},
     "gaming": {"gender": "neutral", "age": "young", "labels": ["gaming", "dramatic"]},
-    "education": {"gender": "neutral", "age": "adult", "labels": ["education", "professional"]},
-    "podcast": {"gender": "neutral", "age": "adult", "labels": ["podcast", "conversational"]},
+    "education": {"gender": "neutral", "age": "middleAged", "labels": ["education", "professional"]},
+    "podcast": {"gender": "neutral", "age": "middleAged", "labels": ["podcast", "conversational"]},
     "advertising": {"gender": "neutral", "age": "young", "labels": ["advertising", "persuasive"]},
-    "audiobook": {"gender": "neutral", "age": "adult", "labels": ["audiobook", "storytelling"]},
+    "audiobook": {"gender": "neutral", "age": "middleAged", "labels": ["audiobook", "storytelling"]},
     "wellness": {"gender": "female", "age": "young", "labels": ["wellness", "calm", "empathetic"]},
-    "sports": {"gender": "neutral", "age": "adult", "labels": ["sports", "energetic", "commentator"]},
+    "sports": {"gender": "neutral", "age": "middleAged", "labels": ["sports", "energetic", "commentator"]},
     "entertainment": {"gender": "neutral", "age": "young", "labels": ["entertainment", "playful"]},
-    "drama": {"gender": "neutral", "age": "adult", "labels": ["drama", "emotional"]},
+    "drama": {"gender": "neutral", "age": "middleAged", "labels": ["drama", "emotional"]},
     "anime": {"gender": "female", "age": "young", "labels": ["anime", "kawaii"]},
 }
 

@@ -353,6 +353,15 @@ def test_b_scene_prefill(monkeypatch):
     assert result["b_input"]["age"] == "young"
     assert "wellness" in result["b_input"]["labels"]
 
+    # adult is not a valid clone-api age alias; adult-scenes map to middleAged.
+    result2 = commands.voice_to_page(
+        cfg,
+        ["--keyword", "k", "--character", "c", "--source", "s",
+         "--description", B_DESC, "--scene", "podcast", "--dry-run"],
+    )
+    assert result2["ok"] is True
+    assert result2["b_input"]["age"] == "middleAged"
+
 
 def test_b_dry_run_shows_description_draft(monkeypatch):
     cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/voice_design_clone.py")
