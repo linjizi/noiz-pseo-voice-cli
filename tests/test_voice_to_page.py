@@ -36,6 +36,7 @@ def _cfg(monkeypatch, **overrides):
 class FakeCms:
     def __init__(self, *args, **kwargs):
         self.records = {}
+        self.patch_calls = []
 
     def get_record(self, key, depth=1):
         rec = self.records.get(str(key)) or self.records.get(key)
@@ -54,6 +55,17 @@ class FakeCms:
         self.records[str(rid)] = rec
         self.records[fields["voiceId"]] = rec
         return {"id": rid, **rec}
+
+    def patch_record(self, record_id, fields):
+        self.patch_calls.append((record_id, dict(fields)))
+        rec = self.records.get(str(record_id)) or self.records.get(record_id)
+        if rec is None:
+            raise CmsError(f"no voice-detail record found for {record_id!r}")
+        rec.update(fields)
+        # regen tests end the poll loop immediately by moving to built.
+        rec["pipelineStatus"] = "built"
+        rec["pipelineStaging"] = {"assets": [{"slug": "a"}] * 9}
+        return rec
 
 
 def _fake_checks(record, site_base):
@@ -614,3 +626,37 @@ def test_c_hook_needs_review_maps_to_exit_2(monkeypatch):
     assert result["ok"] is False
     assert result["exit_code"] == 2
     assert "audio quality low" in result["reason"]
+
+
+def test_regen_existing_resets_record_and_polls(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    cms.records["1"] = {
+        "id": 1,
+        "voiceId": "v1",
+        "pipelineStatus": "built",
+        "pipelineStaging": {},
+    }
+    cms.records["v1"] = cms.records["1"]
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    result = commands.voice_to_page(
+        cfg, ["--voice-id", "v1", "--regen-existing", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert any(
+        s["step"] == "candidate" and "reset to pending_assets" in s["detail"]
+        for s in result["steps"]
+    )
+    assert cms.patch_calls == [(1, {"pipelineStatus": "pending_assets"})]
+    assert result["record_id"] == 1
+
+
+def test_regen_existing_requires_existing_record(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    result = commands.voice_to_page(
+        cfg, ["--voice-id", "ghost", "--regen-existing"]
+    )
+    assert result["ok"] is False
+    assert "no existing record for ghost (--regen-existing)" in result["error"]

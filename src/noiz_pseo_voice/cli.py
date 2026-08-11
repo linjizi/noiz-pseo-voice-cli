@@ -181,6 +181,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_v2p.add_argument("--dry-run", action="store_true", help="preview without writes")
     p_v2p.add_argument("--poll-interval", type=int, default=20, help="seconds between status polls")
     p_v2p.add_argument("--timeout", type=int, default=1800, help="max seconds to wait for built")
+    p_v2p.add_argument("--regen-existing", action="store_true",
+                       help="cathan 2026-08-11: re-run the pipeline for an existing record "
+                            "(reset to pending_assets, keep record/URL; new-standard regen)")
     # B-tier inputs (PRD v0.5.2).
     p_v2p.add_argument("--input", help="keyword-explorer export JSON file (or inline JSON)")
     p_v2p.add_argument("--keyword", help="B-tier: target keyword")
@@ -260,6 +263,8 @@ def main(argv: list[str] | None = None) -> int:
                 rest += ["--dry-run"]
             if args.confirm_description:
                 rest += ["--confirm-description"]
+            if args.regen_existing:
+                rest += ["--regen-existing"]
             rest += ["--poll-interval", str(args.poll_interval), "--timeout", str(args.timeout)]
         else:
             fn = COMMANDS[command]

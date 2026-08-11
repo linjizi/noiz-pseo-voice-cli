@@ -1019,6 +1019,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
     name = None
     index = False  # staged indexing: new pages default noindex (PM 2026-08-10)
     dry_run = False
+    regen_existing = False
     poll_interval = 20
     timeout = 1800
     reserved = []
@@ -1037,6 +1038,9 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
         elif a == "--dry-run":
             dry_run = True
             i += 1
+        elif a == "--regen-existing":
+            regen_existing = True
+            i += 1
         elif a == "--poll-interval" and i + 1 < len(args):
             poll_interval = max(1, int(args[i + 1]))
             i += 2
@@ -1052,7 +1056,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
             return {
                 "ok": False,
                 "error": f"unknown voice-to-page argument {a!r} "
-                "(usage: --voice-id <id> [--name] [--index] [--dry-run])",
+                "(usage: --voice-id <id> [--name] [--index] [--dry-run] [--regen-existing])",
             }
     if not voice_id:
         return {"ok": False, "error": "voice-to-page requires --voice-id <id> (A-tier)"}
@@ -1134,6 +1138,18 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
                     "error": str(exc)}
     record_id = None
     if record is None:
+        if regen_existing:
+            return {
+                "ok": False,
+                "exit_code": 1,
+                "voice_id": voice_id,
+                "steps": steps + [{
+                    "step": "candidate",
+                    "status": "error",
+                    "detail": "--regen-existing requires an existing CMS record",
+                }],
+                "error": f"no existing record for {voice_id} (--regen-existing)",
+            }
         if dry_run:
             add_step("candidate", "dry_run", "would create candidate record")
         else:
@@ -1155,10 +1171,29 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
                         "steps": steps, "error": str(exc)}
     else:
         record_id = record.get("id")
-        add_step("candidate", "skipped", f"existing record {record_id} ({record.get('pipelineStatus')})")
+        if regen_existing:
+            if dry_run:
+                add_step("candidate", "dry_run", f"would reset record {record_id} to pending_assets")
+            else:
+                try:
+                    cms.patch_record(record_id, {"pipelineStatus": "pending_assets"})
+                    add_step(
+                        "candidate",
+                        "ok",
+                        f"regen-existing: record {record_id} reset to pending_assets "
+                        f"(was {record.get('pipelineStatus')})",
+                    )
+                except CmsError as exc:
+                    add_step("candidate", "error", str(exc))
+                    return {"ok": False, "exit_code": 1, "voice_id": voice_id,
+                            "record_id": record_id, "steps": steps, "error": str(exc)}
+        else:
+            add_step("candidate", "skipped", f"existing record {record_id} ({record.get('pipelineStatus')})")
 
     # 4. pipeline poll
-    status = record.get("pipelineStatus") if record else "candidate_screening"
+    status = "pending_assets" if (regen_existing and record and not dry_run) else (
+        record.get("pipelineStatus") if record else "candidate_screening"
+    )
     if dry_run:
         add_step("pipeline", "dry_run", f"would drive record {record_id} to built")
         return {
