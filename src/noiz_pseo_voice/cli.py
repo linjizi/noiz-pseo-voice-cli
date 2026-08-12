@@ -184,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_v2p.add_argument("--regen-existing", action="store_true",
                        help="cathan 2026-08-11: re-run the pipeline for an existing record "
                             "(reset to pending_assets, keep record/URL; new-standard regen)")
+    p_v2p.add_argument("--seo-full", action="store_true",
+                       help="task #22 (cathan 2026-08-12): request a full seo-full rebuild "
+                            "(default incremental; ops dispatches the actual rebuild)")
     # B-tier inputs (PRD v0.5.2).
     p_v2p.add_argument("--input", help="keyword-explorer export JSON file (or inline JSON)")
     p_v2p.add_argument("--keyword", help="B-tier: target keyword")
@@ -265,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
                 rest += ["--confirm-description"]
             if args.regen_existing:
                 rest += ["--regen-existing"]
+            if args.seo_full:
+                rest += ["--seo-full"]
             rest += ["--poll-interval", str(args.poll_interval), "--timeout", str(args.timeout)]
         else:
             fn = COMMANDS[command]

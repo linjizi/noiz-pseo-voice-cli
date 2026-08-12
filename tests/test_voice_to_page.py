@@ -635,7 +635,7 @@ def test_regen_existing_resets_record_and_polls(monkeypatch):
         "id": 1,
         "voiceId": "v1",
         "pipelineStatus": "built",
-        "pipelineStaging": {},
+        "pipelineStaging": {"assets": [{"slug": "a"}] * 9},
     }
     cms.records["v1"] = cms.records["1"]
     _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
@@ -660,3 +660,22 @@ def test_regen_existing_requires_existing_record(monkeypatch):
     )
     assert result["ok"] is False
     assert "no existing record for ghost (--regen-existing)" in result["error"]
+
+
+def test_seo_full_sets_rebuild_mode(monkeypatch):
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    cms.records["1"] = {
+        "id": 1,
+        "voiceId": "v1",
+        "pipelineStatus": "built",
+        "pipelineStaging": {"assets": [{"slug": "a"}] * 9},
+    }
+    cms.records["v1"] = cms.records["1"]
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    result = commands.voice_to_page(
+        cfg, ["--voice-id", "v1", "--seo-full", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert result["rebuild_mode"] == "full"
+    assert "seo-full" in result["rebuild_note"]

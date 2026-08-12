@@ -1020,6 +1020,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
     index = False  # staged indexing: new pages default noindex (PM 2026-08-10)
     dry_run = False
     regen_existing = False
+    seo_full = False  # task #22: default rebuild=incremental; --seo-full opts into full
     poll_interval = 20
     timeout = 1800
     reserved = []
@@ -1041,6 +1042,9 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
         elif a == "--regen-existing":
             regen_existing = True
             i += 1
+        elif a == "--seo-full":
+            seo_full = True
+            i += 1
         elif a == "--poll-interval" and i + 1 < len(args):
             poll_interval = max(1, int(args[i + 1]))
             i += 2
@@ -1056,7 +1060,8 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
             return {
                 "ok": False,
                 "error": f"unknown voice-to-page argument {a!r} "
-                "(usage: --voice-id <id> [--name] [--index] [--dry-run] [--regen-existing])",
+                "(usage: --voice-id <id> [--name] [--index] [--dry-run] "
+                "[--regen-existing] [--seo-full])",
             }
     if not voice_id:
         return {"ok": False, "error": "voice-to-page requires --voice-id <id> (A-tier)"}
@@ -1200,6 +1205,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
             "ok": True,
             "exit_code": 0,
             "dry_run": True,
+            "rebuild_mode": "full" if seo_full else "incremental",
             "voice_id": voice_id,
             "record_id": record_id,
             "pipeline_status": status,
@@ -1278,6 +1284,12 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
     return {
         "ok": True,
         "exit_code": 0,
+        "rebuild_mode": "full" if seo_full else "incremental",
+        "rebuild_note": (
+            "full: ops will run seo-full (all pages)"
+            if seo_full
+            else "incremental: ops will run payload-publish incremental (changed pages only)"
+        ),
         "voice_id": voice_id,
         "record_id": record_id,
         "pipeline_status": status,
