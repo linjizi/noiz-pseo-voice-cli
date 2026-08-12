@@ -21,6 +21,7 @@ PUBLIC_VOICE = {
 
 def _cfg(monkeypatch, **overrides):
     monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
+    monkeypatch.setenv("NOIZ_PSEO_VOICE_CONFIG", "")
     monkeypatch.delenv("NOIZ_CMS_API_KEY", raising=False)
     monkeypatch.delenv("NOIZ_CMS_EMAIL", raising=False)
     monkeypatch.delenv("NOIZ_CMS_PASSWORD", raising=False)
@@ -418,6 +419,30 @@ def test_b_voice_create_hook_then_a_flow(monkeypatch):
     assert captured["payload"]["character"] == "c"
     assert captured["payload"]["source"] == "s"
     assert captured["payload"]["description"] == B_DESC
+
+
+def test_b_confirm_description_without_description(monkeypatch):
+    """--confirm-description with no --description must not crash with
+    UnboundLocalError; the generated draft is sent to the create hook."""
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/voice_design_clone.py --env test")
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vB"))
+    _install_built_after_create(monkeypatch, cms)
+    captured = {}
+
+    def fake_hook(hook, payload, timeout=120):
+        captured["payload"] = payload
+        return {"voice_id": "vB"}
+
+    monkeypatch.setattr(commands, "_run_hook_json", fake_hook)
+    result = commands.voice_to_page(
+        cfg,
+        ["--keyword", "k", "--character", "c", "--source", "s",
+         "--confirm-description", "--timeout", "60"],
+    )
+    assert result["ok"] is True
+    assert captured["payload"]["description"]
+    assert any(s["step"] == "voice_create" and s["status"] == "ok" for s in result["steps"])
     assert any(s["step"] == "voice_create" and s["status"] == "ok" for s in result["steps"])
     assert result["voice_id"] == "vB"
     assert result["page_hint"]["slug_base"] == "k"

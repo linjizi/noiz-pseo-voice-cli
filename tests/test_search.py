@@ -6,6 +6,7 @@ from noiz_pseo_voice.config import Config
 
 def _cfg(monkeypatch):
     monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
+    monkeypatch.setenv("NOIZ_PSEO_VOICE_CONFIG", "")
     monkeypatch.setenv("NOIZ_VOICES_DB_URL", "postgresql://x")
     monkeypatch.delenv("NOIZ_CMS_API_KEY", raising=False)
     monkeypatch.delenv("NOIZ_CMS_EMAIL", raising=False)
@@ -21,6 +22,7 @@ def test_search_requires_query(monkeypatch):
 
 def test_search_falls_back_to_explore_without_db_url(monkeypatch):
     monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
+    monkeypatch.setenv("NOIZ_PSEO_VOICE_CONFIG", "")
     monkeypatch.delenv("NOIZ_VOICES_DB_URL", raising=False)
     cfg = Config()
 
@@ -36,6 +38,7 @@ def test_search_falls_back_to_explore_without_db_url(monkeypatch):
 
 def test_search_explore_empty_falls_back_to_cms(monkeypatch):
     monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
+    monkeypatch.setenv("NOIZ_PSEO_VOICE_CONFIG", "")
     monkeypatch.delenv("NOIZ_VOICES_DB_URL", raising=False)
     cfg = Config()
     monkeypatch.setattr(commands, "_explore_search", lambda base, query, limit: [])

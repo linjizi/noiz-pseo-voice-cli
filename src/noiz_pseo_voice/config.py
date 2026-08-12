@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Optional
 
 DEFAULT_SITE_BASE = "https://noiz.ai"
+# Per-user convenience config (0600 key=value) loaded when
+# NOIZ_PSEO_VOICE_CONFIG is unset; environment variables still win.
+DEFAULT_CONFIG_FILE = Path.home() / ".config" / "noiz-pseo-voice.env"
 
 
 def _read_config_file(path: Optional[str]) -> dict[str, str]:
@@ -48,8 +51,15 @@ def _config_file_mode_warning(path: Optional[str]) -> Optional[str]:
 class Config:
     def __init__(self) -> None:
         env = dict(os.environ)
-        file_path = env.get("NOIZ_PSEO_VOICE_CONFIG")
-        file_vars = _read_config_file(file_path)
+        explicit = env.get("NOIZ_PSEO_VOICE_CONFIG")
+        if explicit is not None:
+            # Empty string = explicitly disable config-file loading.
+            file_path = explicit or None
+            file_vars = _read_config_file(file_path)
+        else:
+            default = DEFAULT_CONFIG_FILE
+            file_path = str(default) if default.is_file() else None
+            file_vars = _read_config_file(file_path)
         merged = {**file_vars, **env}  # env wins
 
         self.config_file = file_path

@@ -553,6 +553,7 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 600) -> Op
     returns {"voice_id": ...}). URL → POST JSON body; command → payload written
     to a temp JSON file and passed as --input <path> (voice_design_clone.py
     contract, v0.5.5)."""
+    stderr_tail = ""
     try:
         if hook.startswith(("http://", "https://")):
             req = urllib.request.Request(
@@ -571,6 +572,7 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 600) -> Op
             try:
                 proc = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
                 body = proc.stdout
+                stderr_tail = (getattr(proc, "stderr", "") or "").strip()[-300:]
             finally:
                 try:
                     os.unlink(tmp_path)
@@ -601,7 +603,15 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 600) -> Op
                 except json.JSONDecodeError:
                     continue
                 break
-        return out if isinstance(out, dict) else None
+        if not isinstance(out, dict):
+            return None
+        if out.get("status") == "needs_review" and stderr_tail:
+            reason = str(out.get("reason") or "").strip()
+            out["reason"] = (
+                f"{reason}\n[hook stderr] {stderr_tail}"
+                if reason else f"[hook stderr] {stderr_tail}"
+            )
+        return out
     except Exception:
         return None
 
@@ -755,11 +765,11 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
         add_step("scene_prefill", "ok", f"prefilled from scene={scene}")
 
     # keyword→voice shortcut (keyword-explorer export with an existing voice).
+    voice_id: Optional[str] = None
     if data.get("voice_id"):
         voice_id = str(data["voice_id"])
         add_step("keyword_shortcut", "ok", f"keyword already has voice {voice_id}; downgrading to A-tier")
     elif description:
-        voice_id = None
         add_step("description", "ok", "user-provided description")
     else:
         draft = (

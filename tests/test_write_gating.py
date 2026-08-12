@@ -7,6 +7,7 @@ from noiz_pseo_voice.config import Config
 
 def _cfg(monkeypatch) -> Config:
     monkeypatch.setenv("NOIZ_CMS_URL", "https://cms.example/seo-manage")
+    monkeypatch.setenv("NOIZ_PSEO_VOICE_CONFIG", "")
     monkeypatch.delenv("NOIZ_CMS_API_KEY", raising=False)
     monkeypatch.delenv("NOIZ_CMS_EMAIL", raising=False)
     monkeypatch.delenv("NOIZ_CMS_PASSWORD", raising=False)
