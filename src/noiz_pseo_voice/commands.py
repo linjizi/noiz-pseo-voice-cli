@@ -748,7 +748,7 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
     scene = str(data.get("scene") or "").strip().lower()
     name = str(data.get("name") or "").strip() or None
     poll_interval = int(data.get("poll-interval") or data.get("poll_interval") or 20)
-    timeout = int(data.get("timeout") or 1800)
+    timeout = int(data.get("timeout") or 3600)
     # Only pass index to A when the user explicitly set it; A defaults to
     # index=false (staged indexing, v0.6.10).
     raw_index = data.get("index")
