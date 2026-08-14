@@ -133,12 +133,14 @@ def test_a_takes_persona_args(monkeypatch):
     _install_built_after_create(monkeypatch, cms)
     result = commands.voice_to_page(
         cfg, ["--voice-id", "v1", "--character", "c", "--source", "s",
-              "--description", "persona description", "--timeout", "60"]
+              "--description", "persona description", "--persona", "persona baseline",
+              "--timeout", "60"]
     )
     assert result["ok"] is True
     assert cms.last_create_fields["pipelineStaging"]["character"] == "c"
-    assert cms.last_create_fields["pipelineStaging"]["source"] == "s"
+    assert cms.last_create_fields["pipelineStaging"]["characterSource"] == "s"
     assert cms.last_create_fields["pipelineStaging"]["voiceDescription"] == "persona description"
+    assert cms.last_create_fields["pipelineStaging"]["characterPersona"] == "persona baseline"
 
 
 def test_requires_db_url(monkeypatch):
@@ -258,7 +260,7 @@ def test_candidate_persists_persona_staging(monkeypatch):
     assert result["ok"] is True
     assert cms.last_create_fields["pipelineStaging"] == {
         "character": "Ultron",
-        "source": "Marvel (MCU)",
+        "characterSource": "Marvel (MCU)",
         "voiceDescription": "Deep authoritative AI villain voice",
     }
 
@@ -721,7 +723,7 @@ def test_c_candidate_persists_persona_staging(monkeypatch):
     assert result["ok"] is True
     assert cms.last_create_fields["pipelineStaging"] == {
         "character": "Ultron",
-        "source": "Marvel (MCU)",
+        "characterSource": "Marvel (MCU)",
     }
 
 

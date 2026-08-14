@@ -705,7 +705,7 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
         if a == "--input" and i + 1 < len(args):
             input_path = args[i + 1]
             i += 2
-        elif a in ("--keyword", "--character", "--source", "--description", "--gender",
+        elif a in ("--keyword", "--character", "--source", "--description", "--persona", "--gender",
                    "--age", "--labels", "--language", "--scene", "--volume", "--tier",
                    "--related", "--name", "--confirm-description", "--dry-run",
                    "--poll-interval", "--timeout", "--index"):
@@ -872,6 +872,8 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
         a_args += ["--source", source]
     if description:
         a_args += ["--description", description]
+    if data.get("persona"):
+        a_args += ["--persona", str(data["persona"])]
     if index is not None:
         a_args += ["--index", str(index)]
     if dry_run:
@@ -903,7 +905,7 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
             i += 2
         elif a in ("--ref-audio", "--name", "--language", "--labels", "--gender",
                    "--age", "--character", "--source", "--poll-interval",
-                   "--timeout", "--index"):
+                   "--timeout", "--index", "--persona"):
             if i + 1 < len(args):
                 raw[a.lstrip("-").replace("-", "_")] = args[i + 1]
                 i += 2
@@ -1006,6 +1008,8 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
         a_args += ["--source", str(data["source"])]
     if data.get("description"):
         a_args += ["--description", str(data["description"])]
+    if data.get("persona"):
+        a_args += ["--persona", str(data["persona"])]
     if data.get("index") is not None:
         a_args += ["--index", str(data["index"])]
     if dry_run:
@@ -1085,7 +1089,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
         elif a == "--timeout" and i + 1 < len(args):
             timeout = max(10, int(args[i + 1]))
             i += 2
-        elif a in ("--description", "--character", "--source") and i + 1 < len(args):
+        elif a in ("--description", "--character", "--source", "--persona") and i + 1 < len(args):
             persona[a.lstrip("-")] = args[i + 1]
             i += 2
         elif a == "--ref-audio":
@@ -1096,7 +1100,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
                 "error": f"unknown voice-to-page argument {a!r} "
                 "(usage: --voice-id <id> [--name] [--index] [--dry-run] "
                 "[--regen-existing] [--seo-full] [--character] [--source] "
-                "[--description])",
+                "[--description] [--persona])",
             }
     if not voice_id:
         return {"ok": False, "error": "voice-to-page requires --voice-id <id> (A-tier)"}
@@ -1197,9 +1201,11 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
             if persona.get("character"):
                 staging["character"] = persona["character"]
             if persona.get("source"):
-                staging["source"] = persona["source"]
+                staging["characterSource"] = persona["source"]
             if persona.get("description"):
                 staging["voiceDescription"] = persona["description"]
+            if persona.get("persona"):
+                staging["characterPersona"] = persona["persona"]
             if staging:
                 fields["pipelineStaging"] = staging
             if name:
