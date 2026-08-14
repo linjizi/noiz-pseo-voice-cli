@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import tempfile
@@ -29,6 +30,12 @@ from .db import (
 
 def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _slugify(value: str) -> str:
+    """ASCII kebab-case slug for CMS canonicalSlug/name (C/B-tier candidate)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower()).strip("-")
+    return slug
 
 
 def _make_audit_entry(cfg: Config, command: str, args: list[str], ok: bool, extra: Optional[dict[str, Any]] = None) -> dict[str, Any]:
@@ -1175,7 +1182,18 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
                 "index": index,
             }
             if name:
-                fields["name"] = name
+                # task #28: candidate name/slug must never contain spaces —
+                # Payload auto-generates canonicalSlug from name, which broke
+                # URLs (e.g. "voice/ultron voice ai"). Always kebab-case and
+                # append the voiceId for uniqueness (backend convention).
+                slug_base = _slugify(name)
+                if slug_base:
+                    record_name = f"{slug_base}-{voice_id}"
+                    fields["canonicalSlug"] = f"voice/{record_name}"
+                else:
+                    record_name = voice_id
+                    fields["canonicalSlug"] = f"voice/{record_name}"
+                fields["name"] = record_name
             try:
                 created = cms.create_record(fields)
                 record_id = created.get("id") or (created.get("doc") or {}).get("id")

@@ -217,6 +217,37 @@ def test_index_true_overrides_default(monkeypatch):
     assert cms.last_create_fields["index"] is True
 
 
+def test_candidate_name_is_slugified_with_voice_id(monkeypatch):
+    """task #28: candidate name/canonicalSlug must never contain spaces
+    (Payload auto-slugs from name; "Ultron Voice AI" produced
+    canonicalSlug="voice/ultron voice ai" and broke the URL)."""
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    _install_built_after_create(monkeypatch, cms)
+    result = commands.voice_to_page(
+        cfg, ["--voice-id", "v1", "--name", "Ultron Voice AI", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert cms.last_create_fields["name"] == "ultron-voice-ai-v1"
+    assert cms.last_create_fields["canonicalSlug"] == "voice/ultron-voice-ai-v1"
+
+
+def test_candidate_cjk_name_falls_back_to_voice_id(monkeypatch):
+    """Non-ASCII names slugify to nothing; fall back to voiceId so the
+    canonicalSlug stays valid."""
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    _install_built_after_create(monkeypatch, cms)
+    result = commands.voice_to_page(
+        cfg, ["--voice-id", "v1", "--name", "朗読家（明人）", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert cms.last_create_fields["name"] == "v1"
+    assert cms.last_create_fields["canonicalSlug"] == "voice/v1"
+
+
 def test_existing_built_skips_create(monkeypatch):
     cfg = _cfg(monkeypatch)
     cms = FakeCms()
