@@ -690,11 +690,13 @@ def test_c_hook_returns_voice_id_then_a_flow(monkeypatch):
 
     monkeypatch.setattr(commands, "_run_hook_json", fake_hook)
     result = commands.voice_to_page(
-        cfg, ["--ref-audio", "/tmp/sample.mp3", "--language", "ja", "--timeout", "60"]
+        cfg, ["--ref-audio", "/tmp/sample.mp3", "--language", "ja", "--timeout", "60",
+              "--source-type", "real_character"]
     )
     assert result["ok"] is True
     assert captured["payload"]["ref_audio"] == "/tmp/sample.mp3"
     assert captured["payload"]["language"] == "ja"
+    assert captured["payload"]["source_type"] == "real_character"
     assert captured["payload"]["env"] == "test"
     assert result["voice_id"] == "vC"
     assert result["page_hint"]["slug_base"] == "vC"

@@ -934,8 +934,8 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
             input_path = args[i + 1]
             i += 2
         elif a in ("--ref-audio", "--name", "--language", "--labels", "--gender",
-                   "--age", "--character", "--source", "--poll-interval",
-                   "--timeout", "--index", "--persona"):
+                   "--age", "--character", "--source", "--source-type", "--persona",
+                   "--poll-interval", "--timeout", "--index"):
             if i + 1 < len(args):
                 raw[a.lstrip("-").replace("-", "_")] = args[i + 1]
                 i += 2
@@ -1008,6 +1008,7 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
         "age": data.get("age"),
         "character": character or None,
         "source": source or None,
+        "source_type": data.get("source_type"),
         "env": cfg.voice_create_env,
     }
     result = _run_hook_json(cfg.voice_create_hook, payload)
