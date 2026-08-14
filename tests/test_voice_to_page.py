@@ -51,7 +51,7 @@ class FakeCms:
             "id": rid,
             "voiceId": fields["voiceId"],
             "pipelineStatus": fields["pipelineStatus"],
-            "pipelineStaging": {},
+            "pipelineStaging": dict(fields.get("pipelineStaging") or {}),
         }
         self.records[str(rid)] = rec
         self.records[fields["voiceId"]] = rec
@@ -124,11 +124,21 @@ def test_requires_voice_id(monkeypatch):
     assert "--voice-id" in result["error"]
 
 
-def test_rejects_mixing_a_and_b_args(monkeypatch):
+def test_a_takes_persona_args(monkeypatch):
+    """task #28 feedback ②: A-tier accepts --character/--source/--description
+    as persona context (previously rejected as B-only inputs)."""
     cfg = _cfg(monkeypatch)
-    result = commands.voice_to_page(cfg, ["--voice-id", "v1", "--description", "x"])
-    assert result["ok"] is False
-    assert "A-tier" in result["error"]
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    _install_built_after_create(monkeypatch, cms)
+    result = commands.voice_to_page(
+        cfg, ["--voice-id", "v1", "--character", "c", "--source", "s",
+              "--description", "persona description", "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert cms.last_create_fields["pipelineStaging"]["character"] == "c"
+    assert cms.last_create_fields["pipelineStaging"]["source"] == "s"
+    assert cms.last_create_fields["pipelineStaging"]["voiceDescription"] == "persona description"
 
 
 def test_requires_db_url(monkeypatch):
@@ -231,6 +241,26 @@ def test_candidate_name_is_slugified_with_voice_id(monkeypatch):
     assert result["ok"] is True
     assert cms.last_create_fields["name"] == "ultron-voice-ai-v1"
     assert cms.last_create_fields["canonicalSlug"] == "voice/ultron-voice-ai-v1"
+
+
+def test_candidate_persists_persona_staging(monkeypatch):
+    """task #28 feedback ②: character/source/description must reach the CMS
+    pipelineStaging so the content LLM gets the character/work context."""
+    cfg = _cfg(monkeypatch)
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=PUBLIC_VOICE)
+    _install_built_after_create(monkeypatch, cms)
+    result = commands.voice_to_page(
+        cfg,
+        ["--voice-id", "v1", "--character", "Ultron", "--source", "Marvel (MCU)",
+         "--description", "Deep authoritative AI villain voice", "--timeout", "60"],
+    )
+    assert result["ok"] is True
+    assert cms.last_create_fields["pipelineStaging"] == {
+        "character": "Ultron",
+        "source": "Marvel (MCU)",
+        "voiceDescription": "Deep authoritative AI villain voice",
+    }
 
 
 def test_candidate_cjk_name_falls_back_to_voice_id(monkeypatch):
@@ -669,6 +699,30 @@ def test_c_hook_returns_voice_id_then_a_flow(monkeypatch):
     assert result["c_input"]["ref_audio"] == "/tmp/sample.mp3"
     # C delegation also defaults to index=false.
     assert cms.last_create_fields["index"] is False
+
+
+def test_c_candidate_persists_persona_staging(monkeypatch):
+    """C-tier must forward character/source into the A-flow candidate so the
+    generated copy understands the character (task #28 feedback ②)."""
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/audio_clone.py")
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vC"))
+    _install_built_after_create(monkeypatch, cms)
+
+    def fake_hook(hook, payload, timeout=600):
+        return {"voice_id": "vC"}
+
+    monkeypatch.setattr(commands, "_run_hook_json", fake_hook)
+    result = commands.voice_to_page(
+        cfg,
+        ["--ref-audio", "/tmp/ultron.mp3", "--character", "Ultron",
+         "--source", "Marvel (MCU)", "--timeout", "60"],
+    )
+    assert result["ok"] is True
+    assert cms.last_create_fields["pipelineStaging"] == {
+        "character": "Ultron",
+        "source": "Marvel (MCU)",
+    }
 
 
 def test_c_hook_needs_review_maps_to_exit_2(monkeypatch):

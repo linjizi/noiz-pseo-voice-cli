@@ -866,6 +866,12 @@ def _voice_to_page_b(cfg: Config, args: list[str]) -> dict[str, Any]:
     a_args = ["--voice-id", voice_id]
     if name:
         a_args += ["--name", name]
+    if character:
+        a_args += ["--character", character]
+    if source:
+        a_args += ["--source", source]
+    if description:
+        a_args += ["--description", description]
     if index is not None:
         a_args += ["--index", str(index)]
     if dry_run:
@@ -994,6 +1000,12 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
     a_args = ["--voice-id", voice_id]
     if data.get("name"):
         a_args += ["--name", str(data["name"])]
+    if data.get("character"):
+        a_args += ["--character", str(data["character"])]
+    if data.get("source"):
+        a_args += ["--source", str(data["source"])]
+    if data.get("description"):
+        a_args += ["--description", str(data["description"])]
     if data.get("index") is not None:
         a_args += ["--index", str(data["index"])]
     if dry_run:
@@ -1017,6 +1029,11 @@ def voice_to_page(cfg: Config, args: list[str]) -> dict[str, Any]:
     """A-tier (--voice-id) or B-tier (keyword/character/source) orchestration."""
     if "--ref-audio" in args:
         return _voice_to_page_c(cfg, args)
+    if "--voice-id" in args:
+        # A-tier also accepts persona context (--character/--source/
+        # --description) which is persisted to the candidate for content
+        # generation (task #28 feedback ②).
+        return _voice_to_page_a(cfg, args)
     b_markers = {"--input", "--keyword", "--character", "--source", "--scene",
                  "--volume", "--tier", "--related", "--gender", "--age",
                  "--language", "--confirm-description"}
@@ -1040,7 +1057,7 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
     seo_full = False  # task #22: default rebuild=incremental; --seo-full opts into full
     poll_interval = 20
     timeout = 1800
-    reserved = []
+    persona: dict[str, str] = {}
     i = 0
     while i < len(args):
         a = args[i]
@@ -1068,9 +1085,9 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
         elif a == "--timeout" and i + 1 < len(args):
             timeout = max(10, int(args[i + 1]))
             i += 2
-        elif a in ("--description", "--character", "--source"):
-            reserved.append(a)
-            i += 2 if i + 1 < len(args) and not args[i + 1].startswith("--") else 1
+        elif a in ("--description", "--character", "--source") and i + 1 < len(args):
+            persona[a.lstrip("-")] = args[i + 1]
+            i += 2
         elif a == "--ref-audio":
             return {"ok": False, "error": "C-tier (--ref-audio) is a separate mode"}
         else:
@@ -1078,16 +1095,11 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
                 "ok": False,
                 "error": f"unknown voice-to-page argument {a!r} "
                 "(usage: --voice-id <id> [--name] [--index] [--dry-run] "
-                "[--regen-existing] [--seo-full])",
+                "[--regen-existing] [--seo-full] [--character] [--source] "
+                "[--description])",
             }
     if not voice_id:
         return {"ok": False, "error": "voice-to-page requires --voice-id <id> (A-tier)"}
-    if reserved:
-        return {
-            "ok": False,
-            "error": "B tier inputs belong to B mode; provide --keyword/--character/"
-            "--source together (or use --voice-id for A-tier)",
-        }
 
     steps: list[dict[str, Any]] = []
 
@@ -1181,6 +1193,15 @@ def _voice_to_page_a(cfg: Config, args: list[str]) -> dict[str, Any]:
                 "pipelineStatus": "candidate_screening",
                 "index": index,
             }
+            staging: dict[str, Any] = {}
+            if persona.get("character"):
+                staging["character"] = persona["character"]
+            if persona.get("source"):
+                staging["source"] = persona["source"]
+            if persona.get("description"):
+                staging["voiceDescription"] = persona["description"]
+            if staging:
+                fields["pipelineStaging"] = staging
             if name:
                 # task #28: candidate name/slug must never contain spaces —
                 # Payload auto-generates canonicalSlug from name, which broke
