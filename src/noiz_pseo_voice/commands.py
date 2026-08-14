@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.parse
@@ -623,6 +624,35 @@ def _run_hook_json(hook: str, payload: dict[str, Any], timeout: int = 600) -> Op
         return None
 
 
+def _run_tag_labels(
+    cfg: Config,
+    voice_id: str,
+    audio: str,
+    character: str,
+    timeout: int = 300,
+) -> str:
+    """Run the SEO-side Gemini taxonomy labeling helper after a C-tier clone
+    (per 《音色库标签》 + cathan 2026-08-14 feedback ③; backend untouched)."""
+    cmd = [
+        sys.executable,
+        cfg.tag_labels_script,
+        "--voice-id", voice_id,
+        "--character", character or "",
+        "--env", cfg.voice_create_env,
+        "--apply",
+    ]
+    if audio.startswith(("http://", "https://")):
+        cmd += ["--audio-url", audio]
+    else:
+        cmd += ["--audio-file", audio]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+        raise RuntimeError((detail[-1] if detail else "label helper failed")[:300])
+    lines = (proc.stdout or "").strip().splitlines()
+    return (lines[-1] if lines else "ok")[:200]
+
+
 # PRD v0.5.2 appendix: scene → gender/age/labels prefill (数据运营, 2026-08-08).
 SCENE_PREFILLS: dict[str, dict[str, Any]] = {
     "social_video": {"gender": "neutral", "age": "young", "labels": ["social", "energetic", "modern"]},
@@ -998,6 +1028,19 @@ def _voice_to_page_c(cfg: Config, args: list[str]) -> dict[str, Any]:
         )
     voice_id = str(result["voice_id"])
     add_step("clone", "ok", f"cloned voice {voice_id} via hook")
+
+    # task #28 feedback ③: SEO-side Gemini labeling right after clone so scene
+    # matching and the content prompt use the corrected taxonomy. Best-effort:
+    # a helper failure warns but does not block the pipeline (labels can be
+    # re-applied before the rerun with real material).
+    if cfg.tag_labels_script:
+        try:
+            tag_detail = _run_tag_labels(cfg, voice_id, ref_audio, character or "")
+            add_step("tag_labels", "ok", tag_detail)
+        except Exception as exc:
+            add_step("tag_labels", "warning", str(exc))
+    else:
+        add_step("tag_labels", "skipped", "NOIZ_TAG_LABELS_SCRIPT not configured")
 
     a_args = ["--voice-id", voice_id]
     if data.get("name"):

@@ -100,6 +100,10 @@ class Config:
         self.publicize_token = merged.get("NOIZ_PUBLICIZE_TOKEN", "").strip() or None
         # Target environment for the B-tier voice create hook (default test).
         self.voice_create_env = merged.get("NOIZ_VOICE_CREATE_ENV", "test").strip() or "test"
+        # C-tier post-clone Gemini labeling helper (SEO-side, per 《音色库标签》).
+        self.tag_labels_script = (
+            merged.get("NOIZ_TAG_LABELS_SCRIPT", "").strip() or ""
+        )
         default_audit = Path.home() / ".local" / "share" / "noiz-pseo-voice" / "audit.jsonl"
         self.audit_log = Path(
             merged.get("NOIZ_AUDIT_LOG", str(default_audit))

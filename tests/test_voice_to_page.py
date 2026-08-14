@@ -727,6 +727,57 @@ def test_c_candidate_persists_persona_staging(monkeypatch):
     }
 
 
+def test_c_tag_labels_runs_after_clone_when_configured(monkeypatch):
+    """task #28 feedback ③: with NOIZ_TAG_LABELS_SCRIPT set, the CLI labels
+    the cloned voice (Gemini taxonomy) before driving the A flow."""
+    cfg = _cfg(
+        monkeypatch,
+        NOIZ_VOICE_CREATE_HOOK="python /tmp/audio_clone.py",
+        NOIZ_TAG_LABELS_SCRIPT="/tmp/tag_voice_labels.py",
+    )
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vC"))
+    _install_built_after_create(monkeypatch, cms)
+
+    def fake_hook(hook, payload, timeout=600):
+        return {"voice_id": "vC"}
+
+    calls = {}
+
+    def fake_tag(cfg_, voice_id, audio, character, timeout=300):
+        calls.update(voice_id=voice_id, audio=audio, character=character)
+        return "labels applied"
+
+    monkeypatch.setattr(commands, "_run_hook_json", fake_hook)
+    monkeypatch.setattr(commands, "_run_tag_labels", fake_tag)
+    result = commands.voice_to_page(
+        cfg,
+        ["--ref-audio", "/tmp/ultron_ref.wav", "--character", "Ultron",
+         "--source", "Marvel (MCU)", "--timeout", "60"],
+    )
+    assert result["ok"] is True
+    assert calls == {"voice_id": "vC", "audio": "/tmp/ultron_ref.wav", "character": "Ultron"}
+    assert any(s["step"] == "tag_labels" and s["status"] == "ok" for s in result["steps"])
+
+
+def test_c_tag_labels_skipped_when_not_configured(monkeypatch):
+    cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/audio_clone.py")
+    cms = FakeCms()
+    _patch_env(monkeypatch, cms=cms, voice=dict(PUBLIC_VOICE, voice_id="vC"))
+    _install_built_after_create(monkeypatch, cms)
+
+    def fake_hook(hook, payload, timeout=600):
+        return {"voice_id": "vC"}
+
+    monkeypatch.setattr(commands, "_run_hook_json", fake_hook)
+    result = commands.voice_to_page(
+        cfg, ["--ref-audio", "/tmp/sample.mp3", "--character", "P", "--source", "S",
+              "--timeout", "60"]
+    )
+    assert result["ok"] is True
+    assert any(s["step"] == "tag_labels" and s["status"] == "skipped" for s in result["steps"])
+
+
 def test_c_hook_needs_review_maps_to_exit_2(monkeypatch):
     cfg = _cfg(monkeypatch, NOIZ_VOICE_CREATE_HOOK="python /tmp/audio_clone.py")
     _patch_env(monkeypatch, cms=FakeCms(), voice=PUBLIC_VOICE)
