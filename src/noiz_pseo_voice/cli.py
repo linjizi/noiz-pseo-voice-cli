@@ -204,6 +204,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_v2p.add_argument("--confirm-description", action="store_true",
                        help="B-tier: confirm the generated description draft")
     p_v2p.add_argument("--ref-audio", help="C-tier: reference audio file/URL -> clone -> page")
+    p_v2p.add_argument("--source-type", choices=["real_character", "synthetic_fallback"],
+                       help="C-tier: reference audio provenance (real_character for original "
+                            "character audio, synthetic_fallback for synthesized refs)")
+    p_v2p.add_argument("--persona", help="C-tier: character persona JSON baseline "
+                                          "(characterPersona/characterVoiceFeel/characterTags)")
     return parser
 
 
@@ -257,7 +262,8 @@ def main(argv: list[str] | None = None) -> int:
                 rest += ["--voice-id", args.voice_id]
             for flag in ("--input", "--keyword", "--description", "--character", "--source",
                          "--gender", "--age", "--labels", "--language", "--scene",
-                         "--volume", "--tier", "--related", "--name", "--ref-audio"):
+                         "--volume", "--tier", "--related", "--name", "--ref-audio",
+                         "--source-type", "--persona"):
                 value = getattr(args, flag.lstrip("-").replace("-", "_"), None)
                 if value:
                     rest += [flag, value]
